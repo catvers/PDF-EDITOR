@@ -1,0 +1,931 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>PDF Master — All-in-one PDF Editor</title>
+<meta name="description" content="Merge, split, compress, protect, crop, convert and edit PDFs right in your browser. Nothing leaves your device."/>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+<script src="https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+<script src="https://unpkg.com/jszip@3.10.1/dist/jszip.min.js"></script>
+<script>
+  if (window['pdfjsLib']) {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+  }
+  tailwind.config = { theme: { extend: { colors: { brand:'#e11d48', brandDark:'#9f1239' }, fontFamily: { sans:['Inter','ui-sans-serif','system-ui'] } } } };
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#f7f7f9; --card:#ffffff; --line:#ececf1; --ink:#111114; --muted:#6b7280; --brand:#e11d48; }
+  html,body { background:var(--bg); color:var(--ink); font-family:'Inter',ui-sans-serif,system-ui; }
+  *,*::before,*::after { -webkit-user-select:none; user-select:none; -webkit-tap-highlight-color:transparent; }
+  input,textarea,[contenteditable="true"],.selectable { -webkit-user-select:text; user-select:text; }
+  img { -webkit-user-drag:none; }
+  ::-webkit-scrollbar { width:8px; height:8px; }
+  ::-webkit-scrollbar-thumb { background:#d4d4d8; border-radius:8px; }
+  ::-webkit-scrollbar-thumb:hover { background:#a1a1aa; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:16px; }
+  .tool-card { transition:transform .15s ease, box-shadow .15s ease, border-color .15s ease; }
+  .tool-card:hover { transform:translateY(-2px); border-color:#fecdd3; box-shadow:0 10px 30px -12px rgba(225,29,72,.25); }
+  .tool-icon { width:44px; height:44px; border-radius:12px; display:flex; align-items:center; justify-content:center; background:#fff1f2; color:var(--brand); }
+  .drop-zone { border:2px dashed #e4e4e7; border-radius:18px; transition:all .15s ease; }
+  .drop-zone.drag { border-color:var(--brand); background:#fff1f2; }
+  .btn-primary { background:var(--brand); color:#fff; transition:background .15s; }
+  .btn-primary:hover { background:#be123c; }
+  .btn-primary:disabled { opacity:.45; cursor:not-allowed; }
+  .btn-ghost { background:#fff; border:1px solid var(--line); transition:background .15s; }
+  .btn-ghost:hover { background:#fafafa; }
+  .page-thumb { position:relative; background:#fff; border:1px solid var(--line); border-radius:10px; overflow:hidden; cursor:pointer; }
+  .page-thumb.selected { outline:3px solid var(--brand); outline-offset:2px; }
+  .badge { font-size:11px; padding:2px 8px; border-radius:999px; background:#fff1f2; color:var(--brand); font-weight:600; }
+  .chip { padding:6px 10px; border-radius:999px; background:#f4f4f5; font-size:12px; font-weight:500; }
+  .spinner { width:18px; height:18px; border:2px solid #fecdd3; border-top-color:var(--brand); border-radius:50%; animation:spin 1s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%); background:#111114; color:#fff; padding:10px 18px; border-radius:10px; font-size:14px; z-index:9999; opacity:0; transition:opacity .2s ease; pointer-events:none; white-space:nowrap; }
+  .toast.show { opacity:1; }
+  .fade-in { animation:fade .25s ease; }
+  @keyframes fade { from { opacity:0; transform:translateY(4px);} to { opacity:1; transform:none;} }
+  .crop-wrap { position:relative; display:inline-block; line-height:0; }
+  .crop-rect { position:absolute; border:2.5px dashed var(--brand); background:rgba(225,29,72,.07); cursor:move; box-sizing:border-box; }
+  .crop-handle { position:absolute; width:14px; height:14px; background:#fff; border:2.5px solid var(--brand); border-radius:3px; cursor:nwse-resize; right:-7px; bottom:-7px; }
+  .modal-backdrop { position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:200; display:flex; align-items:center; justify-content:center; padding:16px; }
+  .modal-box { background:#fff; border-radius:20px; max-width:520px; width:100%; padding:28px; box-shadow:0 25px 60px -10px rgba(0,0,0,.3); }
+  .preview-strip { display:flex; gap:8px; overflow-x:auto; padding:8px 0; }
+  .preview-strip::-webkit-scrollbar { height:6px; }
+  .preview-thumb { flex-shrink:0; width:80px; border:2px solid var(--line); border-radius:8px; overflow:hidden; background:#fff; }
+  .preview-thumb img { width:100%; display:block; }
+  #livePreviewPanel { position:sticky; top:80px; max-height:calc(100vh - 100px); overflow:auto; }
+  .chat-shadow { box-shadow:0 25px 60px -15px rgba(0,0,0,.25); }
+  .del-thumb { position:relative; }
+  .del-thumb .del-badge { position:absolute; top:6px; right:6px; background:var(--brand); color:#fff; border-radius:999px; font-size:11px; font-weight:700; padding:2px 7px; display:none; }
+  .del-thumb.selected .del-badge { display:block; }
+  .del-thumb.selected .page-thumb { outline:3px solid var(--brand); outline-offset:2px; }
+</style>
+</head>
+<body class="min-h-screen">
+
+<header class="sticky top-0 z-30 bg-white/90 backdrop-blur border-b border-[var(--line)]">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center gap-4">
+    <button id="homeBtn" class="flex items-center gap-2.5">
+      <div class="w-9 h-9 rounded-xl bg-brand text-white flex items-center justify-center font-bold text-lg">M</div>
+      <div class="text-left leading-tight">
+        <div class="font-bold text-[15px]">PDF Master</div>
+        <div class="text-[11px] text-gray-400 -mt-0.5">Your browser-based PDF suite</div>
+      </div>
+    </button>
+    <div class="flex-1"></div>
+    <div class="hidden md:flex items-center gap-2">
+      <span class="chip">100% private</span>
+      <span class="chip">No server upload</span>
+      <span class="chip">Free forever</span>
+    </div>
+    <button id="aboutBtn" class="btn-ghost px-4 py-2 rounded-xl text-sm font-medium ml-2">About</button>
+  </div>
+</header>
+
+<main class="max-w-7xl mx-auto px-4 sm:px-6 py-8 pb-32">
+  <div id="view"></div>
+</main>
+
+<button id="chatToggle" class="fixed bottom-6 right-6 z-40 w-14 h-14 rounded-full btn-primary chat-shadow flex items-center justify-center">
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+</button>
+<div id="chatPanel" class="hidden fixed bottom-24 right-6 z-40 w-[360px] max-w-[92vw] h-[480px] max-h-[70vh] card chat-shadow flex flex-col overflow-hidden">
+  <div class="px-4 py-3 border-b border-[var(--line)] flex items-center gap-3">
+    <div class="w-8 h-8 rounded-full bg-brand text-white flex items-center justify-center font-bold text-sm">PM</div>
+    <div class="flex-1"><div class="font-semibold text-sm">PDF Master Assistant</div><div class="text-[11px] text-gray-500 flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-green-500"></span> Online</div></div>
+    <button id="chatClose" class="text-gray-400 hover:text-gray-700">✕</button>
+  </div>
+  <div id="chatMessages" class="flex-1 overflow-y-auto p-3 space-y-2 bg-[var(--bg)]"></div>
+  <div id="chatForm" class="border-t border-[var(--line)] p-2 flex gap-2 bg-white">
+    <input id="chatInput" class="selectable flex-1 px-3 py-2 rounded-lg bg-[var(--bg)] outline-none text-sm" placeholder="Ask anything about PDFs…" autocomplete="off"/>
+    <button id="chatSend" class="btn-primary px-3 rounded-lg text-sm font-medium">Send</button>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<div id="dlModal" class="modal-backdrop hidden">
+  <div class="modal-box">
+    <h3 class="font-bold text-lg mb-1">Preview & Save</h3>
+    <p class="text-sm text-gray-500 mb-4">Rename your file before downloading.</p>
+    <div id="dlPreviewArea" class="mb-4 rounded-xl overflow-hidden border border-[var(--line)] bg-gray-50" style="height:280px;"></div>
+    <label class="text-sm font-medium">File name</label>
+    <input id="dlName" class="selectable w-full mt-2 mb-5 px-3 py-2 rounded-lg border border-[var(--line)] outline-none focus:border-brand text-sm"/>
+    <div class="flex gap-3 justify-end">
+      <button id="dlCancel" class="btn-ghost px-5 py-2.5 rounded-xl text-sm font-medium">Cancel</button>
+      <button id="dlConfirm" class="btn-primary px-5 py-2.5 rounded-xl text-sm font-medium">Download</button>
+    </div>
+  </div>
+</div>
+
+<div id="aboutModal" class="modal-backdrop hidden">
+  <div class="modal-box max-w-lg">
+    <div class="flex items-center gap-3 mb-5">
+      <div class="w-12 h-12 rounded-2xl bg-brand text-white flex items-center justify-center font-bold text-xl">M</div>
+      <div><div class="font-bold text-xl">PDF Master</div><div class="text-sm text-gray-500">Browser-based PDF toolkit</div></div>
+    </div>
+    <p class="text-sm text-gray-700 leading-relaxed mb-4">PDF Master is a free, privacy-first PDF toolkit that runs entirely in your browser. Every operation — merging, splitting, compressing, protecting, cropping, watermarking, converting — happens locally on your device. Your files are never uploaded to any server. No account needed. No hidden limits.</p>
+    <p class="text-sm text-gray-700 leading-relaxed mb-5">Built with PDF-lib and PDF.js, PDF Master gives you professional PDF tools at zero cost. Whether you're a student, professional, or just need to edit a quick document, we've got you covered.</p>
+    <div class="card p-4 mb-5 space-y-2">
+      <div class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Contact</div>
+      <div class="flex items-center gap-2 text-sm"><span class="text-gray-400">🎨</span><span class="font-medium text-gray-700">Studio:</span><a href="mailto:catversstudio@gmail.com" class="text-brand hover:underline selectable">catversstudio@gmail.com</a></div>
+      <div class="flex items-center gap-2 text-sm"><span class="text-gray-400">📧</span><span class="font-medium text-gray-700">Support:</span><a href="mailto:asisasastudent@gmail.com" class="text-brand hover:underline selectable">asisasastudent@gmail.com</a></div>
+    </div>
+    <div class="flex flex-wrap gap-2 mb-5">
+      <span class="chip">🔒 100% Private</span><span class="chip">⚡ Runs Offline</span><span class="chip">🆓 Always Free</span><span class="chip">🌐 No Sign-up</span>
+    </div>
+    <button id="aboutClose" class="btn-primary w-full py-2.5 rounded-xl font-medium">Close</button>
+  </div>
+</div>
+
+<script>
+const { PDFDocument, degrees, rgb, StandardFonts } = PDFLib;
+const view = document.getElementById('view');
+const toastEl = document.getElementById('toast');
+
+const toast = (m, dur=2400) => {
+  toastEl.textContent = m; toastEl.classList.add('show');
+  clearTimeout(toast._t); toast._t = setTimeout(()=>toastEl.classList.remove('show'), dur);
+};
+
+function pdfBytesToBlobUrl(bytes) {
+  const blob = bytes instanceof Blob ? bytes : new Blob([bytes], {type:'application/pdf'});
+  return URL.createObjectURL(blob);
+}
+
+let _dlPending = null;
+function downloadWithPreview(bytes, suggestedName, mime='application/pdf') {
+  return new Promise(resolve => {
+    _dlPending = { bytes, mime, resolve };
+    document.getElementById('dlName').value = suggestedName;
+    const area = document.getElementById('dlPreviewArea');
+    area.innerHTML = '';
+    const url = pdfBytesToBlobUrl(bytes instanceof Blob ? bytes : new Blob([bytes],{type:mime}));
+    if (mime==='application/pdf') {
+      const iframe = document.createElement('iframe');
+      iframe.src = url; iframe.style.cssText='width:100%;height:100%;border:0;';
+      area.appendChild(iframe);
+    } else if (mime.startsWith('text/html')) {
+      area.innerHTML='<div class="p-4 text-sm text-gray-600 text-center py-16">📄 HTML file — preview not available.<br/>Download to open in browser.</div>';
+    } else {
+      area.innerHTML='<div class="p-4 text-sm text-gray-600 text-center py-16">File ready to download.</div>';
+    }
+    document.getElementById('dlModal').classList.remove('hidden');
+  });
+}
+document.getElementById('dlCancel').onclick = () => {
+  document.getElementById('dlModal').classList.add('hidden');
+  _dlPending && _dlPending.resolve(false); _dlPending=null;
+};
+document.getElementById('dlConfirm').onclick = () => {
+  if (!_dlPending) return;
+  const name = document.getElementById('dlName').value.trim() || 'output';
+  const {bytes,mime} = _dlPending;
+  const blob = bytes instanceof Blob ? bytes : new Blob([bytes],{type:mime});
+  const a = document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+  document.getElementById('dlModal').classList.add('hidden');
+  _dlPending.resolve(true); _dlPending=null;
+};
+
+document.getElementById('aboutBtn').onclick = ()=>document.getElementById('aboutModal').classList.remove('hidden');
+document.getElementById('aboutClose').onclick = ()=>document.getElementById('aboutModal').classList.add('hidden');
+document.getElementById('aboutModal').addEventListener('click', e=>{ if(e.target===document.getElementById('aboutModal')) document.getElementById('aboutModal').classList.add('hidden'); });
+
+async function buildPreviewStrip(buf, container) {
+  container.innerHTML = '<div class="flex items-center gap-2 text-xs text-gray-400 py-2"><span class="spinner inline-block"></span> Loading preview…</div>';
+  try {
+    const pdf = await pdfjsLib.getDocument({data:buf.slice(0)}).promise;
+    const strip = document.createElement('div'); strip.className='preview-strip';
+    const maxShow = Math.min(pdf.numPages, 8);
+    for (let i=1;i<=maxShow;i++) {
+      const page = await pdf.getPage(i);
+      const vp = page.getViewport({scale:0.18});
+      const c = document.createElement('canvas'); c.width=vp.width; c.height=vp.height;
+      await page.render({canvasContext:c.getContext('2d'),viewport:vp}).promise;
+      const thumb = document.createElement('div'); thumb.className='preview-thumb';
+      const img = document.createElement('img'); img.src=c.toDataURL(); thumb.appendChild(img);
+      const lbl = document.createElement('div'); lbl.className='text-[9px] text-center text-gray-400 py-0.5'; lbl.textContent=`P${i}`; thumb.appendChild(lbl);
+      strip.appendChild(thumb);
+    }
+    if (pdf.numPages>maxShow) {
+      const more = document.createElement('div'); more.className='flex items-center px-2 text-xs text-gray-400 shrink-0'; more.textContent=`+${pdf.numPages-maxShow} more`; strip.appendChild(more);
+    }
+    container.innerHTML='<div class="text-xs font-semibold text-gray-400 mb-1">Preview — '+pdf.numPages+' page'+(pdf.numPages!==1?'s':'')+'</div>';
+    container.appendChild(strip);
+  } catch(e){ container.innerHTML='<div class="text-xs text-gray-400">Preview unavailable</div>'; }
+}
+
+const icon = (svg) => `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${svg}</svg>`;
+const TOOLS = [
+  { id:'merge',    name:'Merge PDF',     desc:'Combine multiple PDFs into one document.',    icon:icon('<path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/><path d="M9 12h6"/><path d="M12 9v6"/>') },
+  { id:'split',    name:'Split PDF',     desc:'Extract a range of pages as a new PDF.',      icon:icon('<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M12 3v18"/>') },
+  { id:'delete',   name:'Delete / Split',desc:'View all pages, delete or split selected.',   icon:icon('<path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>') },
+  { id:'reorder',  name:'Reorder Pages', desc:'Drag thumbnails to rearrange pages.',         icon:icon('<path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/>') },
+  { id:'rotate',   name:'Rotate Pages',  desc:'Rotate selected pages 90°/180°/270°.',        icon:icon('<path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/>') },
+  { id:'compress', name:'Compress PDF',  desc:'Re-encode images to shrink file size.',       icon:icon('<path d="M4 14h6v6"/><path d="M20 10h-6V4"/><path d="M14 10l7-7"/><path d="M3 21l7-7"/>') },
+  { id:'protect',  name:'Protect PDF',   desc:'Lock your PDF behind an AES password gate.',  icon:icon('<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>') },
+  { id:'img2pdf',  name:'Images → PDF',  desc:'Turn JPG/PNG photos into a single PDF.',      icon:icon('<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="M21 15l-5-5L5 21"/>') },
+  { id:'pdf2img',  name:'PDF → Images',  desc:'Export each page as a PNG (zipped).',         icon:icon('<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 15l5-5 5 5 4-4 4 4"/>') },
+  { id:'crop',     name:'Crop PDF',      desc:'Manual drag or auto-crop white margins.',      icon:icon('<path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M18 22V8a2 2 0 0 0-2-2H2"/>') },
+  { id:'number',   name:'Page Numbers',  desc:'Add page numbers in any corner.',             icon:icon('<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 17V9l-2 2"/><path d="M14 9h3v3h-3z"/>') },
+  { id:'watermark',name:'Watermark',     desc:'Stamp text diagonally across every page.',    icon:icon('<path d="M3 3l18 18"/><path d="M21 3L3 21"/>') },
+];
+
+function go(toolId) {
+  if (!toolId) return renderHome();
+  const tool = TOOLS.find(t=>t.id===toolId); if(!tool) return renderHome();
+  renderTool(tool);
+}
+document.getElementById('homeBtn').onclick = ()=>go();
+
+function renderHome() {
+  view.innerHTML = `
+    <section class="fade-in">
+      <div class="text-center max-w-2xl mx-auto mb-10 mt-2">
+        <span class="badge">All-in-one PDF toolkit</span>
+        <h1 class="text-3xl sm:text-4xl font-extrabold mt-4 tracking-tight">Every PDF tool you need, right here.</h1>
+        <p class="text-gray-500 mt-3">Merge, split, compress, protect, crop, convert — everything runs in your browser. Files never leave your device.</p>
+      </div>
+      <div id="grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+    </section>`;
+  const grid = document.getElementById('grid');
+  grid.innerHTML = TOOLS.map(t=>`
+    <button data-id="${t.id}" class="tool-card text-left card p-5 flex gap-4 items-start">
+      <div class="tool-icon shrink-0">${t.icon}</div>
+      <div class="flex-1"><div class="font-semibold">${t.name}</div><div class="text-sm text-gray-500 mt-1">${t.desc}</div></div>
+    </button>`).join('');
+  grid.querySelectorAll('button[data-id]').forEach(b=>b.onclick=()=>go(b.dataset.id));
+}
+
+function toolHeader(tool) {
+  return `<div class="flex items-center gap-3 mb-6 fade-in">
+    <button id="backBtn" class="btn-ghost w-10 h-10 rounded-xl flex items-center justify-center text-lg">←</button>
+    <div class="tool-icon">${tool.icon}</div>
+    <div><div class="font-bold text-lg">${tool.name}</div><div class="text-sm text-gray-500">${tool.desc}</div></div>
+  </div>`;
+}
+
+function dropZone({ accept='application/pdf', multiple=true, label='Drop PDFs here or click to browse' }) {
+  return `<label class="drop-zone block p-10 text-center cursor-pointer card">
+    <input type="file" class="hidden" accept="${accept}" ${multiple?'multiple':''}/>
+    <div class="mx-auto w-14 h-14 rounded-2xl bg-[var(--bg)] flex items-center justify-center mb-3">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#e11d48" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+    </div>
+    <div class="font-semibold">${label}</div>
+    <div class="text-sm text-gray-500 mt-1">Files are processed locally — never uploaded.</div>
+  </label>`;
+}
+
+function wireDrop(el, onFiles) {
+  const input = el.querySelector('input[type=file]');
+  input.onchange = e => onFiles([...e.target.files]);
+  ['dragenter','dragover'].forEach(ev=>el.addEventListener(ev, e=>{ e.preventDefault(); el.classList.add('drag'); }));
+  ['dragleave','drop'].forEach(ev=>el.addEventListener(ev, e=>{ e.preventDefault(); el.classList.remove('drag'); }));
+  el.addEventListener('drop', e=>{ if(e.dataTransfer.files.length) onFiles([...e.dataTransfer.files]); });
+}
+
+function renderTool(tool) {
+  view.innerHTML = toolHeader(tool) + `<div id="toolBody" class="fade-in"></div>`;
+  document.getElementById('backBtn').onclick = ()=>go();
+  ({
+    merge:    toolMerge,
+    split:    toolSplit,
+    delete:   toolDeleteSplit,
+    reorder:  toolReorder,
+    rotate:   toolRotate,
+    compress: toolCompress,
+    protect:  toolProtect,
+    img2pdf:  toolImg2Pdf,
+    pdf2img:  toolPdf2Img,
+    crop:     toolCrop,
+    number:   toolNumber,
+    watermark:toolWatermark,
+  })[tool.id]();
+}
+
+function toolMerge() {
+  const body = document.getElementById('toolBody');
+  body.innerHTML = dropZone({label:'Drop PDFs to merge (2+)'}) + `
+    <div id="pvStrip" class="mt-3"></div>
+    <div id="list" class="mt-4 space-y-2"></div>
+    <div class="mt-6 flex gap-3"><button id="go" class="btn-primary px-5 py-2.5 rounded-xl font-medium" disabled>Merge & Download</button></div>`;
+  const dz = body.querySelector('.drop-zone');
+  const list = document.getElementById('list'), goBtn = document.getElementById('go'), pvStrip = document.getElementById('pvStrip');
+  let files = [];
+  const render = () => {
+    list.innerHTML = files.map((f,i)=>`<div class="card px-4 py-3 flex items-center gap-3"><div class="badge">${i+1}</div><div class="flex-1 truncate text-sm">${f.name}</div><div class="text-xs text-gray-400">${(f.size/1024).toFixed(0)} KB</div><button data-i="${i}" class="text-gray-400 hover:text-brand ml-2">✕</button></div>`).join('');
+    list.querySelectorAll('button[data-i]').forEach(b=>b.onclick=()=>{ files.splice(+b.dataset.i,1); render(); });
+    goBtn.disabled = files.length < 2;
+    if (files.length===1) buildPreviewStrip(files[0]._buf, pvStrip);
+  };
+  wireDrop(dz, async fs => {
+    const newPdfs = fs.filter(f=>f.type==='application/pdf');
+    for (const f of newPdfs) { f._buf = await f.arrayBuffer(); }
+    files.push(...newPdfs); render();
+    if (files.length>0) buildPreviewStrip(files[files.length-1]._buf, pvStrip);
+  });
+  goBtn.onclick = async () => {
+    goBtn.disabled=true; goBtn.innerHTML='<span class="spinner inline-block align-middle mr-2"></span>Merging…';
+    try {
+      const out = await PDFDocument.create();
+      for (const f of files) {
+        const src = await PDFDocument.load(f._buf||await f.arrayBuffer(),{ignoreEncryption:true});
+        const pages = await out.copyPages(src, src.getPageIndices());
+        pages.forEach(p=>out.addPage(p));
+      }
+      await downloadWithPreview(await out.save(), 'merged.pdf');
+      toast('Merged ✓');
+    } catch(e){ toast('Failed: '+e.message); }
+    goBtn.disabled=false; goBtn.textContent='Merge & Download';
+  };
+}
+
+function toolSplit() {
+  const body = document.getElementById('toolBody');
+  body.innerHTML = dropZone({multiple:false}) + `
+    <div id="pvStrip" class="mt-3"></div>
+    <div id="opts" class="hidden card p-5 mt-4 space-y-4">
+      <div class="text-sm text-gray-600">Total pages: <span id="total" class="font-semibold text-gray-900"></span></div>
+      <div>
+        <label class="text-sm font-medium">Page ranges <span class="text-gray-400 font-normal">(e.g. <code class="selectable">1-3,5,8-10</code>)</span></label>
+        <input id="ranges" class="selectable w-full mt-2 px-3 py-2 rounded-lg border border-[var(--line)] outline-none focus:border-brand text-sm" placeholder="1-3,5"/>
+      </div>
+      <button id="go" class="btn-primary px-5 py-2.5 rounded-xl font-medium">Split & Download</button>
+    </div>`;
+  const dz = body.querySelector('.drop-zone'); const pvStrip = document.getElementById('pvStrip');
+  let buf=null, total=0;
+  wireDrop(dz, async fs => {
+    buf = await fs[0].arrayBuffer();
+    const pdf = await PDFDocument.load(buf,{ignoreEncryption:true});
+    total = pdf.getPageCount();
+    document.getElementById('total').textContent = total;
+    document.getElementById('opts').classList.remove('hidden');
+    buildPreviewStrip(buf, pvStrip);
+  });
+  document.getElementById('opts').querySelector('#go').onclick = async () => {
+    if (!buf) return;
+    const txt = document.getElementById('ranges').value.trim(); if(!txt) return toast('Enter a range');
+    const idxs=[]; txt.split(',').forEach(part=>{ const [a,b]=part.split('-').map(n=>parseInt(n.trim())); if(isNaN(a))return; for(let i=a;i<=(b||a);i++) if(i>=1&&i<=total) idxs.push(i-1); });
+    if(!idxs.length) return toast('No valid pages');
+    const src = await PDFDocument.load(buf,{ignoreEncryption:true}); const out = await PDFDocument.create();
+    const copied = await out.copyPages(src,idxs); copied.forEach(p=>out.addPage(p));
+    await downloadWithPreview(await out.save(),'split.pdf');
+    toast('Split ✓');
+  };
+}
+
+function toolDeleteSplit() {
+  const body = document.getElementById('toolBody');
+  body.innerHTML = dropZone({multiple:false, label:'Drop a PDF to view all pages'}) + `
+    <div id="pvStrip" class="mt-3"></div>
+    <div id="main" class="hidden mt-4">
+      <div class="flex flex-wrap gap-2 items-center mb-4">
+        <span class="text-sm text-gray-600">Click pages to select. <span id="selCount" class="font-semibold text-brand">0 selected</span></span>
+        <div class="flex-1"></div>
+        <button id="selAll" class="btn-ghost px-3 py-1.5 rounded-lg text-sm">Select All</button>
+        <button id="selNone" class="btn-ghost px-3 py-1.5 rounded-lg text-sm">Deselect All</button>
+      </div>
+      <div id="thumbGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3"></div>
+      <div class="mt-5 flex flex-wrap gap-3 card p-4 items-center bg-gray-50">
+        <div class="text-sm text-gray-600 flex-1">With selected pages:</div>
+        <button id="doDelete" class="btn-primary px-4 py-2 rounded-xl text-sm font-medium">🗑 Delete selected & save rest</button>
+        <button id="doSplit" class="btn-ghost px-4 py-2 rounded-xl text-sm font-medium">✂️ Extract selected as new PDF</button>
+      </div>
+    </div>`;
+  const dz = body.querySelector('.drop-zone'); const pvStrip = document.getElementById('pvStrip');
+  let buf=null, pageInfo=[];
+  wireDrop(dz, async fs=>{
+    buf = await fs[0].arrayBuffer();
+    buildPreviewStrip(buf, pvStrip);
+    await loadAll();
+  });
+  async function loadAll() {
+    const main = document.getElementById('main'); main.classList.remove('hidden');
+    const grid = document.getElementById('thumbGrid');
+    grid.innerHTML='<div class="col-span-full text-center text-sm text-gray-500 py-8"><span class="spinner inline-block mr-2 align-middle"></span>Loading all pages…</div>';
+    const pdf = await pdfjsLib.getDocument({data:buf.slice(0)}).promise;
+    pageInfo=[]; grid.innerHTML='';
+    for (let i=1;i<=pdf.numPages;i++) {
+      const page=await pdf.getPage(i);
+      const vp=page.getViewport({scale:0.45});
+      const c=document.createElement('canvas'); c.width=vp.width; c.height=vp.height;
+      await page.render({canvasContext:c.getContext('2d'),viewport:vp}).promise;
+      const wrap=document.createElement('div'); wrap.className='del-thumb';
+      const thumb=document.createElement('div'); thumb.className='page-thumb p-2 cursor-pointer';
+      const imgEl=document.createElement('img'); imgEl.src=c.toDataURL(); imgEl.className='w-full rounded';
+      const lbl=document.createElement('div'); lbl.className='text-xs text-center mt-1 text-gray-500'; lbl.textContent=`Page ${i}`;
+      const badge=document.createElement('div'); badge.className='del-badge'; badge.textContent='✓';
+      thumb.appendChild(imgEl); thumb.appendChild(lbl); wrap.appendChild(badge); wrap.appendChild(thumb);
+      const info={index:i-1, selected:false, wrap};
+      thumb.onclick=()=>{ info.selected=!info.selected; wrap.classList.toggle('selected',info.selected); updateCount(); };
+      grid.appendChild(wrap); pageInfo.push(info);
+    }
+    updateCount();
+    document.getElementById('selAll').onclick=()=>{ pageInfo.forEach(p=>{p.selected=true;p.wrap.classList.add('selected');}); updateCount(); };
+    document.getElementById('selNone').onclick=()=>{ pageInfo.forEach(p=>{p.selected=false;p.wrap.classList.remove('selected');}); updateCount(); };
+    document.getElementById('doDelete').onclick = async ()=>{
+      const keep=pageInfo.filter(p=>!p.selected);
+      if(!keep.length) return toast('Cannot delete all pages');
+      const src=await PDFDocument.load(buf,{ignoreEncryption:true}); const out=await PDFDocument.create();
+      const copied=await out.copyPages(src,keep.map(p=>p.index)); copied.forEach(p=>out.addPage(p));
+      await downloadWithPreview(await out.save(),'deleted.pdf'); toast('Saved ✓');
+    };
+    document.getElementById('doSplit').onclick = async ()=>{
+      const sel=pageInfo.filter(p=>p.selected);
+      if(!sel.length) return toast('Select at least one page');
+      const src=await PDFDocument.load(buf,{ignoreEncryption:true}); const out=await PDFDocument.create();
+      const copied=await out.copyPages(src,sel.map(p=>p.index)); copied.forEach(p=>out.addPage(p));
+      await downloadWithPreview(await out.save(),'extracted.pdf'); toast('Extracted ✓');
+    };
+  }
+  function updateCount() {
+    const n=pageInfo.filter(p=>p.selected).length;
+    document.getElementById('selCount').textContent = n+' selected';
+  }
+}
+
+function toolReorder() {
+  const body = document.getElementById('toolBody');
+  body.innerHTML = dropZone({multiple:false,label:'Drop a PDF'}) + `
+    <div id="pvStrip" class="mt-3"></div>
+    <div id="thumbs" class="mt-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3"></div>
+    <div id="bar" class="mt-6 hidden flex-wrap gap-3 items-center"></div>`;
+  const dz = body.querySelector('.drop-zone'); const pvStrip = document.getElementById('pvStrip');
+  let buf=null, pageInfo=[];
+  wireDrop(dz, async fs=>{
+    buf=await fs[0].arrayBuffer(); buildPreviewStrip(buf,pvStrip); await loadThumbs();
+  });
+  async function loadThumbs() {
+    const thumbs=document.getElementById('thumbs'); const bar=document.getElementById('bar');
+    thumbs.innerHTML='<div class="col-span-full text-center text-sm text-gray-500 py-8"><span class="spinner inline-block mr-2 align-middle"></span>Rendering…</div>';
+    const pdf=await pdfjsLib.getDocument({data:buf.slice(0)}).promise;
+    pageInfo=[]; thumbs.innerHTML='';
+    for (let i=1;i<=pdf.numPages;i++) {
+      const page=await pdf.getPage(i); const vp=page.getViewport({scale:0.4});
+      const c=document.createElement('canvas'); c.width=vp.width; c.height=vp.height;
+      await page.render({canvasContext:c.getContext('2d'),viewport:vp}).promise;
+      const wrap=document.createElement('div'); wrap.className='page-thumb p-2 cursor-grab'; wrap.draggable=true; wrap.dataset.idx=i-1;
+      wrap.innerHTML=`<div class="aspect-[3/4] flex items-center justify-center overflow-hidden bg-gray-50 rounded"><img style="max-width:100%;max-height:100%" src="${c.toDataURL()}"/></div><div class="mt-1 text-xs text-center text-gray-500">Page ${i}</div>`;
+      thumbs.appendChild(wrap); pageInfo.push({index:i-1,el:wrap});
+    }
+    enableDnd(); renderBar(bar);
+  }
+  function enableDnd() {
+    const thumbs=document.getElementById('thumbs');
+    let dragIdx=null;
+    thumbs.querySelectorAll('.page-thumb').forEach((el,i)=>{
+      el.addEventListener('dragstart',()=>{ dragIdx=i; el.style.opacity='.5'; });
+      el.addEventListener('dragend',()=>el.style.opacity='');
+      el.addEventListener('dragover',e=>e.preventDefault());
+      el.addEventListener('drop',()=>{ if(dragIdx===null||dragIdx===i) return; const [m]=pageInfo.splice(dragIdx,1); pageInfo.splice(i,0,m); pageInfo.forEach(p=>thumbs.appendChild(p.el)); enableDnd(); dragIdx=null; });
+    });
+  }
+  function renderBar(bar) {
+    bar.classList.remove('hidden'); bar.classList.add('flex');
+    bar.innerHTML=`<div class="text-sm text-gray-600">Drag thumbnails into your preferred order.</div><div class="flex-1"></div><button id="go" class="btn-primary px-5 py-2.5 rounded-xl font-medium">Save Order & Download</button>`;
+    bar.querySelector('#go').onclick = async ()=>{
+      const src=await PDFDocument.load(buf,{ignoreEncryption:true}); const out=await PDFDocument.create();
+      const copied=await out.copyPages(src,pageInfo.map(p=>p.index)); copied.forEach(p=>out.addPage(p));
+      await downloadWithPreview(await out.save(),'reordered.pdf'); toast('Saved ✓');
+    };
+  }
+}
+
+function toolRotate() {
+  const body = document.getElementById('toolBody');
+  body.innerHTML = dropZone({multiple:false,label:'Drop a PDF'}) + `
+    <div id="pvStrip" class="mt-3"></div>
+    <div id="thumbs" class="mt-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3"></div>
+    <div id="bar" class="mt-6 hidden flex-wrap gap-3 items-center"></div>`;
+  const dz=body.querySelector('.drop-zone'); const pvStrip=document.getElementById('pvStrip');
+  let buf=null, pageInfo=[];
+  wireDrop(dz,async fs=>{
+    buf=await fs[0].arrayBuffer(); buildPreviewStrip(buf,pvStrip); await loadThumbs();
+  });
+  async function loadThumbs() {
+    const thumbs=document.getElementById('thumbs'); const bar=document.getElementById('bar');
+    thumbs.innerHTML='<div class="col-span-full text-center text-sm text-gray-500 py-8"><span class="spinner inline-block mr-2 align-middle"></span>Rendering…</div>';
+    const pdf=await pdfjsLib.getDocument({data:buf.slice(0)}).promise;
+    pageInfo=[]; thumbs.innerHTML='';
+    for (let i=1;i<=pdf.numPages;i++) {
+      const page=await pdf.getPage(i); const vp=page.getViewport({scale:0.4});
+      const c=document.createElement('canvas'); c.width=vp.width; c.height=vp.height;
+      await page.render({canvasContext:c.getContext('2d'),viewport:vp}).promise;
+      const wrap=document.createElement('div'); wrap.className='page-thumb p-2 cursor-pointer'; wrap.dataset.idx=i-1;
+      wrap.innerHTML=`<div class="aspect-[3/4] flex items-center justify-center overflow-hidden bg-gray-50 rounded"><img style="max-width:100%;max-height:100%;transition:transform .2s ease" src="${c.toDataURL()}"/></div><div class="mt-1 text-xs text-center text-gray-500">Page ${i}</div>`;
+      wrap.onclick=()=>{ const info=pageInfo[+wrap.dataset.idx]; info.selected=!info.selected; wrap.classList.toggle('selected',info.selected); };
+      thumbs.appendChild(wrap); pageInfo.push({index:i-1,rotate:0,selected:false,el:wrap});
+    }
+    renderBar(bar);
+  }
+  function renderBar(bar) {
+    bar.classList.remove('hidden'); bar.classList.add('flex');
+    bar.innerHTML=`<div class="text-sm text-gray-600">Select pages, then rotate.</div>
+      <button id="rL" class="btn-ghost px-3 py-2 rounded-lg text-sm">↺ 90°</button>
+      <button id="rR" class="btn-ghost px-3 py-2 rounded-lg text-sm">↻ 90°</button>
+      <button id="r180" class="btn-ghost px-3 py-2 rounded-lg text-sm">180°</button>
+      <div class="flex-1"></div>
+      <button id="go" class="btn-primary px-5 py-2.5 rounded-xl font-medium">Save & Download</button>`;
+    const applyRotate=d=>pageInfo.forEach(p=>{ if(p.selected){ p.rotate=(p.rotate+d+360)%360; p.el.querySelector('img').style.transform=`rotate(${p.rotate}deg)`; } });
+    bar.querySelector('#rL').onclick=()=>applyRotate(-90);
+    bar.querySelector('#rR').onclick=()=>applyRotate(90);
+    bar.querySelector('#r180').onclick=()=>applyRotate(180);
+    bar.querySelector('#go').onclick=async()=>{
+      const src=await PDFDocument.load(buf,{ignoreEncryption:true}); const out=await PDFDocument.create();
+      const copied=await out.copyPages(src,pageInfo.map(p=>p.index));
+      copied.forEach((p,i)=>{ if(pageInfo[i].rotate) p.setRotation(degrees(pageInfo[i].rotate)); out.addPage(p); });
+      await downloadWithPreview(await out.save(),'rotated.pdf'); toast('Saved ✓');
+    };
+  }
+}
+
+function toolCompress() {
+  const body = document.getElementById('toolBody');
+  body.innerHTML = dropZone({multiple:false}) + `
+    <div id="pvStrip" class="mt-3"></div>
+    <div id="opts" class="hidden card p-5 mt-4 space-y-4">
+      <div><label class="text-sm font-medium">Image quality: <span id="qv" class="font-semibold">60</span>%</label>
+        <input id="q" type="range" min="20" max="90" value="60" class="w-full mt-2 accent-brand"/>
+        <div class="text-xs text-gray-500 mt-1">Lower quality = smaller file. Pages are re-rendered as JPEGs.</div></div>
+      <div><label class="text-sm font-medium">Scale: <span id="sv" class="font-semibold">1.5</span>×</label>
+        <input id="s" type="range" min="0.8" max="2.5" step="0.1" value="1.5" class="w-full mt-2 accent-brand"/></div>
+      <button id="go" class="btn-primary px-5 py-2.5 rounded-xl font-medium">Compress & Download</button>
+    </div>`;
+  const dz=body.querySelector('.drop-zone'); const pvStrip=document.getElementById('pvStrip');
+  let buf=null, origSize=0;
+  wireDrop(dz,async fs=>{ buf=await fs[0].arrayBuffer(); origSize=fs[0].size; document.getElementById('opts').classList.remove('hidden'); buildPreviewStrip(buf,pvStrip); });
+  document.getElementById('q').oninput=e=>document.getElementById('qv').textContent=e.target.value;
+  document.getElementById('s').oninput=e=>document.getElementById('sv').textContent=e.target.value;
+  document.getElementById('go').onclick=async()=>{
+    if(!buf) return;
+    const btn=document.getElementById('go'); btn.disabled=true; btn.innerHTML='<span class="spinner inline-block align-middle mr-2"></span>Compressing…';
+    try {
+      const pdf=await pdfjsLib.getDocument({data:buf.slice(0)}).promise;
+      const out=await PDFDocument.create();
+      const scale=parseFloat(document.getElementById('s').value), quality=parseInt(document.getElementById('q').value)/100;
+      for (let i=1;i<=pdf.numPages;i++) {
+        const page=await pdf.getPage(i); const vp=page.getViewport({scale});
+        const c=document.createElement('canvas'); c.width=vp.width; c.height=vp.height;
+        await page.render({canvasContext:c.getContext('2d'),viewport:vp}).promise;
+        const blob=await new Promise(r=>c.toBlob(r,'image/jpeg',quality));
+        const img=await out.embedJpg(await blob.arrayBuffer());
+        const p=out.addPage([vp.width,vp.height]); p.drawImage(img,{x:0,y:0,width:vp.width,height:vp.height});
+      }
+      const bytes=await out.save();
+      toast(`${(origSize/1024).toFixed(0)} KB → ${(bytes.byteLength/1024).toFixed(0)} KB`);
+      await downloadWithPreview(bytes,'compressed.pdf');
+    } catch(e){ toast('Failed: '+e.message); }
+    btn.disabled=false; btn.textContent='Compress & Download';
+  };
+}
+
+function toolProtect() {
+  const body = document.getElementById('toolBody');
+  body.innerHTML = dropZone({multiple:false}) + `
+    <div id="pvStrip" class="mt-3"></div>
+    <div id="opts" class="hidden card p-5 mt-4 space-y-4">
+      <div class="rounded-lg bg-blue-50 border border-blue-200 px-3 py-2 text-xs text-blue-800">
+        🔐 Uses AES-256-GCM encryption (Web Crypto API). The PDF is encrypted client-side. The output is a self-contained HTML file — open it in any browser, enter your password, and the PDF downloads.
+      </div>
+      <div><label class="text-sm font-medium">Password</label>
+        <input id="pw" type="password" class="selectable w-full mt-2 px-3 py-2 rounded-lg border border-[var(--line)] outline-none focus:border-brand text-sm" placeholder="Enter a strong password"/></div>
+      <div><label class="text-sm font-medium">Confirm Password</label>
+        <input id="pw2" type="password" class="selectable w-full mt-2 px-3 py-2 rounded-lg border border-[var(--line)] outline-none focus:border-brand text-sm" placeholder="Re-enter password"/></div>
+      <button id="go" class="btn-primary px-5 py-2.5 rounded-xl font-medium">Protect & Download</button>
+    </div>`;
+  const dz=body.querySelector('.drop-zone'); const pvStrip=document.getElementById('pvStrip');
+  let buf=null, fname='';
+  wireDrop(dz,async fs=>{ buf=await fs[0].arrayBuffer(); fname=fs[0].name; document.getElementById('opts').classList.remove('hidden'); buildPreviewStrip(buf,pvStrip); });
+  document.getElementById('go').onclick=async()=>{
+    if(!buf) return;
+    const pw=document.getElementById('pw').value; const pw2=document.getElementById('pw2').value;
+    if(!pw) return toast('Enter a password');
+    if(pw!==pw2) return toast('Passwords do not match');
+    const btn=document.getElementById('go'); btn.disabled=true; btn.innerHTML='<span class="spinner inline-block align-middle mr-2"></span>Encrypting…';
+    try {
+      const enc = new TextEncoder();
+      const keyMaterial = await crypto.subtle.importKey('raw', enc.encode(pw), 'PBKDF2', false, ['deriveKey']);
+      const salt = crypto.getRandomValues(new Uint8Array(16));
+      const iv = crypto.getRandomValues(new Uint8Array(12));
+      const key = await crypto.subtle.deriveKey(
+        { name:'PBKDF2', salt, iterations:100000, hash:'SHA-256' },
+        keyMaterial, { name:'AES-GCM', length:256 }, false, ['encrypt']
+      );
+      const encrypted = await crypto.subtle.encrypt({name:'AES-GCM',iv}, key, buf);
+      const saltB64 = btoa(String.fromCharCode(...salt));
+      const ivB64   = btoa(String.fromCharCode(...iv));
+      const dataB64 = btoa(String.fromCharCode(...new Uint8Array(encrypted)));
+      const safeFile = fname.replace(/</g,'&lt;');
+      const html=`<!doctype html><html><head><meta charset="utf-8"><title>🔒 ${safeFile}</title>
+<style>*{box-sizing:border-box}body{font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:linear-gradient(135deg,#f7f7f9 0%,#fff1f2 100%)}
+.b{background:#fff;padding:36px 32px;border-radius:20px;box-shadow:0 20px 60px -10px rgba(0,0,0,.18);max-width:380px;width:92%;text-align:center}
+h2{margin:0 0 6px;font-size:22px}p{color:#6b7280;font-size:14px;margin:0 0 20px}
+input{width:100%;padding:11px 14px;border:1.5px solid #e4e4e7;border-radius:10px;margin:0 0 12px;font-size:15px;outline:none}
+input:focus{border-color:#e11d48}
+button{width:100%;padding:12px;background:#e11d48;color:#fff;border:0;border-radius:10px;cursor:pointer;font-size:15px;font-weight:600}
+button:hover{background:#be123c}.err{color:#e11d48;font-size:13px;margin:8px 0 0;min-height:18px}</style></head>
+<body><div class="b">
+<div style="font-size:36px;margin-bottom:12px">🔒</div>
+<h2>Protected PDF</h2><p>${safeFile}</p>
+<input id=p type=password placeholder="Enter password" onkeydown="if(event.key==='Enter')u()"/>
+<button onclick="u()">Unlock & Download</button>
+<div class="err" id=e></div></div>
+<script>
+const S="${saltB64}",IV="${ivB64}",D="${dataB64}";
+async function u(){
+  const pw=document.getElementById('p').value; document.getElementById('e').textContent='';
+  if(!pw)return;
+  try{
+    const enc=new TextEncoder();
+    const km=await crypto.subtle.importKey('raw',enc.encode(pw),'PBKDF2',false,['deriveKey']);
+    const salt=Uint8Array.from(atob(S),c=>c.charCodeAt(0));
+    const iv=Uint8Array.from(atob(IV),c=>c.charCodeAt(0));
+    const key=await crypto.subtle.deriveKey({name:'PBKDF2',salt,iterations:100000,hash:'SHA-256'},km,{name:'AES-GCM',length:256},false,['decrypt']);
+    const data=Uint8Array.from(atob(D),c=>c.charCodeAt(0));
+    const dec=await crypto.subtle.decrypt({name:'AES-GCM',iv},key,data);
+    const url=URL.createObjectURL(new Blob([dec],{type:'application/pdf'}));
+    const a=document.createElement('a');a.href=url;a.download='${fname}';a.click();
+    setTimeout(()=>URL.revokeObjectURL(url),5000);
+  }catch(e){document.getElementById('e').textContent='Wrong password. Try again.';}
+}<\/script></body></html>`;
+      const htmlBytes = new TextEncoder().encode(html);
+      const outName = fname.replace(/\.pdf$/i,'')+'-protected.html';
+      await downloadWithPreview(new Blob([htmlBytes],{type:'text/html'}), outName, 'text/html');
+      toast('Encrypted & Protected ✓');
+    } catch(e){ toast('Encryption failed: '+e.message); }
+    btn.disabled=false; btn.textContent='Protect & Download';
+  };
+}
+
+function toolImg2Pdf() {
+  const body = document.getElementById('toolBody');
+  body.innerHTML = dropZone({accept:'image/*', label:'Drop images (JPG/PNG)'}) + `
+    <div id="imgs" class="mt-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3"></div>
+    <div class="mt-6 flex gap-3"><button id="go" class="btn-primary px-5 py-2.5 rounded-xl font-medium" disabled>Create PDF</button></div>`;
+  const dz=body.querySelector('.drop-zone'); const list=document.getElementById('imgs'); const goBtn=document.getElementById('go');
+  let imgFiles=[];
+  const render=()=>{
+    list.innerHTML=imgFiles.map((f,i)=>`<div class="card p-2 relative"><img src="${URL.createObjectURL(f)}" class="w-full aspect-square object-cover rounded"/><button data-i="${i}" class="absolute top-1 right-1 w-6 h-6 rounded-full bg-white shadow text-xs font-bold">✕</button><div class="text-xs mt-1 truncate text-center text-gray-500">${f.name}</div></div>`).join('');
+    list.querySelectorAll('button').forEach(b=>b.onclick=()=>{ imgFiles.splice(+b.dataset.i,1); render(); });
+    goBtn.disabled=!imgFiles.length;
+  };
+  wireDrop(dz,fs=>{ imgFiles.push(...fs.filter(f=>f.type.startsWith('image/'))); render(); });
+  goBtn.onclick=async()=>{
+    try {
+      const out=await PDFDocument.create();
+      for (const f of imgFiles) {
+        const ab=await f.arrayBuffer();
+        const img=f.type==='image/png'?await out.embedPng(ab):await out.embedJpg(ab);
+        const p=out.addPage([img.width,img.height]); p.drawImage(img,{x:0,y:0,width:img.width,height:img.height});
+      }
+      await downloadWithPreview(await out.save(),'images.pdf');
+      toast('PDF created ✓');
+    } catch(e){ toast('Failed: '+e.message); }
+  };
+}
+
+function toolPdf2Img() {
+  const body = document.getElementById('toolBody');
+  body.innerHTML = dropZone({multiple:false}) + `
+    <div id="pvStrip" class="mt-3"></div>
+    <div id="pv" class="mt-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3"></div>
+    <div class="mt-6"><button id="go" class="btn-primary px-5 py-2.5 rounded-xl font-medium hidden">Download ZIP</button></div>`;
+  const dz=body.querySelector('.drop-zone'); const pvStrip=document.getElementById('pvStrip');
+  let canvases=[];
+  wireDrop(dz,async fs=>{
+    const pv=document.getElementById('pv'); pv.innerHTML='<div class="col-span-full text-sm text-gray-500"><span class="spinner inline-block align-middle mr-2"></span>Rendering…</div>';
+    const buf=await fs[0].arrayBuffer();
+    buildPreviewStrip(buf,pvStrip);
+    const pdf=await pdfjsLib.getDocument({data:buf}).promise;
+    canvases=[]; pv.innerHTML='';
+    for (let i=1;i<=pdf.numPages;i++) {
+      const page=await pdf.getPage(i); const vp=page.getViewport({scale:1.5});
+      const c=document.createElement('canvas'); c.width=vp.width; c.height=vp.height;
+      await page.render({canvasContext:c.getContext('2d'),viewport:vp}).promise;
+      canvases.push(c);
+      const t=document.createElement('div'); t.className='page-thumb p-2';
+      t.innerHTML=`<img src="${c.toDataURL()}" class="w-full rounded"/><div class="text-xs text-center mt-1 text-gray-500">Page ${i}</div>`;
+      pv.appendChild(t);
+    }
+    document.getElementById('go').classList.remove('hidden');
+  });
+  document.getElementById('go').onclick=async()=>{
+    if(!canvases.length) return;
+    const zip=new JSZip();
+    for (let i=0;i<canvases.length;i++) {
+      const blob=await new Promise(r=>canvases[i].toBlob(r,'image/png'));
+      zip.file(`page-${String(i+1).padStart(3,'0')}.png`,blob);
+    }
+    const zipBlob=await zip.generateAsync({type:'blob'});
+    const a=document.createElement('a'); a.href=URL.createObjectURL(zipBlob); a.download='pages.zip'; a.click();
+    setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+    toast('Exported ✓');
+  };
+}
+
+function toolCrop() {
+  const body = document.getElementById('toolBody');
+  body.innerHTML = dropZone({multiple:false}) + `
+    <div id="pvStrip" class="mt-3"></div>
+    <div id="opts" class="hidden mt-4">
+      <div class="flex flex-wrap gap-3 mb-4">
+        <button id="auto" class="btn-ghost px-4 py-2 rounded-lg text-sm">Auto-crop white margins</button>
+        <button id="reset" class="btn-ghost px-4 py-2 rounded-lg text-sm">Reset crop</button>
+        <div class="flex-1"></div>
+        <button id="go" class="btn-primary px-5 py-2.5 rounded-xl font-medium">Apply & Download</button>
+      </div>
+      <div class="card p-4 flex justify-center overflow-auto"><div id="cropWrap" class="crop-wrap"></div></div>
+      <div class="text-xs text-gray-500 mt-3 text-center">Drag the red box to move it. Drag the corner handle to resize. Same crop applies to every page.</div>
+    </div>`;
+  const dz=body.querySelector('.drop-zone'); const pvStrip=document.getElementById('pvStrip');
+  let buf=null, canvas=null, rect={x:40,y:40,w:200,h:280}, pageVp=null;
+  wireDrop(dz,async fs=>{ buf=await fs[0].arrayBuffer(); buildPreviewStrip(buf,pvStrip); await renderPreview(); document.getElementById('opts').classList.remove('hidden'); });
+
+  async function renderPreview() {
+    const pdf=await pdfjsLib.getDocument({data:buf.slice(0)}).promise;
+    const page=await pdf.getPage(1); pageVp=page.getViewport({scale:1});
+    const scale=Math.min(560/pageVp.width,720/pageVp.height,1.4);
+    const vp=page.getViewport({scale});
+    canvas=document.createElement('canvas'); canvas.width=vp.width; canvas.height=vp.height;
+    await page.render({canvasContext:canvas.getContext('2d'),viewport:vp}).promise;
+    const wrap=document.getElementById('cropWrap'); wrap.innerHTML=''; wrap.appendChild(canvas);
+    rect={x:20,y:20,w:vp.width-40,h:vp.height-40};
+    drawRect(wrap);
+  }
+
+  function drawRect(wrap) {
+    let r=wrap.querySelector('.crop-rect');
+    if(!r){ r=document.createElement('div'); r.className='crop-rect'; wrap.appendChild(r); }
+    r.innerHTML='<div class="crop-handle"></div>';
+    applyRect(r);
+    const handle=r.querySelector('.crop-handle');
+    let mode=null,ox=0,oy=0;
+    r.addEventListener('mousedown', e=>{
+      if(e.target===handle) return;
+      mode='move'; ox=e.clientX-rect.x; oy=e.clientY-rect.y;
+      e.preventDefault();
+    });
+    handle.addEventListener('mousedown', e=>{
+      mode='resize'; ox=e.clientX-(rect.x+rect.w); oy=e.clientY-(rect.y+rect.h);
+      e.preventDefault(); e.stopPropagation();
+    });
+    r.addEventListener('touchstart', e=>{
+      if(e.target===handle) return;
+      const t=e.touches[0]; mode='move'; ox=t.clientX-rect.x; oy=t.clientY-rect.y;
+    },{passive:true});
+    handle.addEventListener('touchstart', e=>{
+      const t=e.touches[0]; mode='resize'; ox=t.clientX-(rect.x+rect.w); oy=t.clientY-(rect.y+rect.h);
+      e.stopPropagation();
+    },{passive:true});
+    const moveHandler=e=>{
+      if(!mode) return;
+      const cx=e.clientX||(e.touches&&e.touches[0].clientX), cy=e.clientY||(e.touches&&e.touches[0].clientY);
+      if(!cx) return;
+      if(mode==='move'){ rect.x=Math.max(0,Math.min(canvas.width-rect.w,cx-ox)); rect.y=Math.max(0,Math.min(canvas.height-rect.h,cy-oy)); }
+      else { rect.w=Math.max(30,Math.min(canvas.width-rect.x,cx-ox-rect.x+rect.w)); rect.h=Math.max(30,Math.min(canvas.height-rect.y,cy-oy-rect.y+rect.h)); }
+      applyRect(r);
+    };
+    const upHandler=()=>mode=null;
+    window.addEventListener('mousemove',moveHandler);
+    window.addEventListener('mouseup',upHandler);
+    window.addEventListener('touchmove',moveHandler,{passive:true});
+    window.addEventListener('touchend',upHandler);
+  }
+  function applyRect(r){ Object.assign(r.style,{left:rect.x+'px',top:rect.y+'px',width:rect.w+'px',height:rect.h+'px'}); }
+
+  document.getElementById('reset').onclick=()=>{ if(!canvas)return; rect={x:20,y:20,w:canvas.width-40,h:canvas.height-40}; const w=document.getElementById('cropWrap'); const old=w.querySelector('.crop-rect'); if(old) w.removeChild(old); drawRect(w); };
+  document.getElementById('auto').onclick=()=>{
+    if(!canvas) return;
+    const ctx=canvas.getContext('2d'); const d=ctx.getImageData(0,0,canvas.width,canvas.height).data;
+    const isWhite=i=>d[i]>235&&d[i+1]>235&&d[i+2]>235;
+    let t=0,b=canvas.height-1,l=0,rr=canvas.width-1;
+    outer:for(;t<canvas.height;t++) for(let x=0;x<canvas.width;x++) if(!isWhite((t*canvas.width+x)*4)) break outer;
+    outer:for(;b>t;b--) for(let x=0;x<canvas.width;x++) if(!isWhite((b*canvas.width+x)*4)) break outer;
+    outer:for(;l<canvas.width;l++) for(let y=t;y<=b;y++) if(!isWhite((y*canvas.width+l)*4)) break outer;
+    outer:for(;rr>l;rr--) for(let y=t;y<=b;y++) if(!isWhite((y*canvas.width+rr)*4)) break outer;
+    rect={x:Math.max(0,l-4),y:Math.max(0,t-4),w:Math.min(canvas.width-l+4,(rr-l+8)),h:Math.min(canvas.height-t+4,(b-t+8))};
+    const w=document.getElementById('cropWrap'); applyRect(w.querySelector('.crop-rect'));
+  };
+  document.getElementById('go').onclick=async()=>{
+    if(!buf||!canvas) return;
+    const sx=canvas.width/pageVp.width, sy=canvas.height/pageVp.height;
+    const pdf=await PDFDocument.load(buf,{ignoreEncryption:true});
+    pdf.getPages().forEach(p=>{
+      const {width,height}=p.getSize();
+      const x=rect.x/sx, y=rect.y/sy, w=rect.w/sx, h=rect.h/sy;
+      p.setCropBox(x, height-y-h, w, h);
+    });
+    await downloadWithPreview(await pdf.save(),'cropped.pdf'); toast('Cropped ✓');
+  };
+}
+
+function toolNumber() {
+  const body = document.getElementById('toolBody');
+  body.innerHTML = dropZone({multiple:false}) + `
+    <div id="pvStrip" class="mt-3"></div>
+    <div id="opts" class="hidden card p-5 mt-4 space-y-4">
+      <div><label class="text-sm font-medium">Position</label>
+        <select id="pos" class="w-full mt-2 px-3 py-2 rounded-lg border border-[var(--line)] outline-none text-sm">
+          <option value="br">Bottom right</option><option value="bl">Bottom left</option><option value="bc">Bottom center</option>
+          <option value="tr">Top right</option><option value="tl">Top left</option><option value="tc">Top center</option>
+        </select></div>
+      <div><label class="text-sm font-medium">Font size</label>
+        <input id="size" type="number" value="12" min="8" max="48" class="w-full mt-2 px-3 py-2 rounded-lg border border-[var(--line)] outline-none text-sm"/></div>
+      <button id="go" class="btn-primary px-5 py-2.5 rounded-xl font-medium">Add Numbers & Download</button>
+    </div>`;
+  const dz=body.querySelector('.drop-zone'); const pvStrip=document.getElementById('pvStrip');
+  let buf=null;
+  wireDrop(dz,async fs=>{ buf=await fs[0].arrayBuffer(); document.getElementById('opts').classList.remove('hidden'); buildPreviewStrip(buf,pvStrip); });
+  document.getElementById('go').onclick=async()=>{
+    if(!buf) return;
+    const pdf=await PDFDocument.load(buf,{ignoreEncryption:true});
+    const font=await pdf.embedFont(StandardFonts.Helvetica);
+    const pos=document.getElementById('pos').value, sz=+document.getElementById('size').value;
+    pdf.getPages().forEach((p,i,arr)=>{
+      const {width,height}=p.getSize(); const txt=`${i+1} / ${arr.length}`; const tw=font.widthOfTextAtSize(txt,sz); const m=24;
+      const x=pos.endsWith('r')?width-tw-m:pos.endsWith('l')?m:(width-tw)/2;
+      const y=pos.startsWith('b')?m:height-sz-m;
+      p.drawText(txt,{x,y,size:sz,font,color:rgb(0.1,0.1,0.12)});
+    });
+    await downloadWithPreview(await pdf.save(),'numbered.pdf'); toast('Numbered ✓');
+  };
+}
+
+function toolWatermark() {
+  const body = document.getElementById('toolBody');
+  body.innerHTML = dropZone({multiple:false}) + `
+    <div id="pvStrip" class="mt-3"></div>
+    <div id="opts" class="hidden card p-5 mt-4 space-y-4">
+      <div><label class="text-sm font-medium">Watermark text</label>
+        <input id="txt" class="selectable w-full mt-2 px-3 py-2 rounded-lg border border-[var(--line)] outline-none text-sm" placeholder="CONFIDENTIAL"/></div>
+      <div><label class="text-sm font-medium">Opacity: <span id="ov" class="font-semibold">30</span>%</label>
+        <input id="op" type="range" min="10" max="80" value="30" class="w-full mt-2 accent-brand"/></div>
+      <button id="go" class="btn-primary px-5 py-2.5 rounded-xl font-medium">Apply Watermark & Download</button>
+    </div>`;
+  const dz=body.querySelector('.drop-zone'); const pvStrip=document.getElementById('pvStrip');
+  let buf=null;
+  wireDrop(dz,async fs=>{ buf=await fs[0].arrayBuffer(); document.getElementById('opts').classList.remove('hidden'); buildPreviewStrip(buf,pvStrip); });
+  document.getElementById('op').oninput=e=>document.getElementById('ov').textContent=e.target.value;
+  document.getElementById('go').onclick=async()=>{
+    if(!buf) return;
+    const pdf=await PDFDocument.load(buf,{ignoreEncryption:true});
+    const font=await pdf.embedFont(StandardFonts.HelveticaBold);
+    const txt=(document.getElementById('txt').value||'CONFIDENTIAL').toUpperCase();
+    const op=+document.getElementById('op').value/100;
+    pdf.getPages().forEach(p=>{
+      const {width,height}=p.getSize(); const sz=Math.min(width,height)/8; const tw=font.widthOfTextAtSize(txt,sz);
+      p.drawText(txt,{x:(width-tw*0.7)/2, y:height/2, size:sz, font, color:rgb(0.88,0.11,0.28), opacity:op, rotate:degrees(-30)});
+    });
+    await downloadWithPreview(await pdf.save(),'watermarked.pdf'); toast('Watermarked ✓');
+  };
+}
+
+const chatPanel=document.getElementById('chatPanel');
+const chatMessages=document.getElementById('chatMessages');
+const chatInput=document.getElementById('chatInput');
+document.getElementById('chatToggle').onclick=()=>{ chatPanel.classList.toggle('hidden'); chatInput.focus(); };
+document.getElementById('chatClose').onclick=()=>chatPanel.classList.add('hidden');
+
+const KB=[
+  {k:['merge','combine','join'],a:"Open **Merge PDF**, drop two or more PDFs, then click *Merge & Download*.",tool:'merge'},
+  {k:['split','extract','range'],a:"Use **Split PDF** and enter ranges like `1-3,5,8-10`.",tool:'split'},
+  {k:['delete','remove page'],a:"Open **Delete / Split**, view all pages, select which to remove, then click *Delete selected*.",tool:'delete'},
+  {k:['reorder','rearrange','sort page'],a:"Use **Reorder Pages** and drag thumbnails into the order you want.",tool:'reorder'},
+  {k:['rotate','turn','sideways'],a:"Open **Rotate Pages**, select pages, then click 90°/180°.",tool:'rotate'},
+  {k:['compress','reduce','smaller','size'],a:"Try **Compress PDF**. Lower quality/scale = smaller file.",tool:'compress'},
+  {k:['protect','password','encrypt','lock'],a:"**Protect PDF** uses AES-256-GCM encryption. The output is an HTML file — open it, enter your password, and the PDF downloads.",tool:'protect'},
+  {k:['image','photo','jpg','png'],a:"Use **Images → PDF** to turn photos into a single PDF.",tool:'img2pdf'},
+  {k:['pdf to image','export pages'],a:"**PDF → Images** renders each page as PNG and downloads a ZIP.",tool:'pdf2img'},
+  {k:['crop','margin','trim'],a:"Open **Crop PDF**. Drag the red box manually, or click *Auto-crop* to remove white margins.",tool:'crop'},
+  {k:['number','paginate'],a:"Use **Page Numbers** and pick a corner.",tool:'number'},
+  {k:['watermark','stamp'],a:"Use **Watermark** to stamp text across every page.",tool:'watermark'},
+  {k:['safe','privacy','upload','server'],a:"100% safe — every tool runs in your browser. Files never leave your device."},
+  {k:['contact','email','studio'],a:"📧 Studio: catversstudio@gmail.com\n📧 Support: asisasastudent@gmail.com"},
+  {k:['hi','hello','hey'],a:"Hey! 👋 I'm your PDF Master assistant. Ask me how to merge, split, protect, crop, compress and more."},
+  {k:['thank'],a:"You're welcome! 🙌"},
+];
+
+function addMsg(text,who='bot',toolId=null){
+  const wrap=document.createElement('div'); wrap.className=`flex ${who==='me'?'justify-end':'justify-start'}`;
+  const bubble=document.createElement('div');
+  bubble.className=who==='me'
+    ?'max-w-[80%] bg-brand text-white rounded-2xl rounded-br-md px-3 py-2 text-sm'
+    :'max-w-[85%] bg-white border border-[var(--line)] rounded-2xl rounded-bl-md px-3 py-2 text-sm';
+  bubble.innerHTML=text.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/`(.+?)`/g,'<code class="selectable bg-gray-100 px-1 rounded">$1</code>').replace(/\n/g,'<br/>');
+  if(toolId){ const b=document.createElement('button'); b.className='mt-2 text-xs font-semibold text-brand hover:underline block'; b.textContent='→ Open this tool'; b.onclick=()=>{ go(toolId); chatPanel.classList.add('hidden'); }; bubble.appendChild(b); }
+  wrap.appendChild(bubble); chatMessages.appendChild(wrap); chatMessages.scrollTop=chatMessages.scrollHeight;
+}
+function reply(q){ const lc=q.toLowerCase(); const hit=KB.find(e=>e.k.some(k=>lc.includes(k))); if(hit) addMsg(hit.a,'bot',hit.tool); else addMsg("I'm not sure — try asking about *merge*, *split*, *protect*, *compress*, *crop*, *watermark*, etc.",'bot'); }
+document.getElementById('chatSend').onclick=()=>{ const v=chatInput.value.trim(); if(!v)return; addMsg(v,'me'); chatInput.value=''; setTimeout(()=>reply(v),350); };
+chatInput.onkeydown=e=>{ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); document.getElementById('chatSend').click(); } };
+addMsg("Hi! I'm your PDF Master assistant. Ask me how to do anything — merge, compress, protect, crop, and more.",'bot');
+
+renderHome();
+</script>
+</body>
+</html>
