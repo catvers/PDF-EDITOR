@@ -1,0 +1,924 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>PDF MASTER — All-in-one PDF editor</title>
+<meta name="description" content="PDF MASTER: merge, split, compress, protect, crop and convert PDFs right in your browser. Nothing leaves your device." />
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+<script src="https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+<script src="https://unpkg.com/jszip@3.10.1/dist/jszip.min.js"></script>
+<script>
+  if (window['pdfjsLib']) {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+  }
+  tailwind.config = { theme: { extend: { colors: { brand: '#e11d48', brandDark: '#9f1239' }, fontFamily: { sans: ['Inter','ui-sans-serif','system-ui'] } } } };
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#f7f7f9; --card:#ffffff; --line:#ececf1; --ink:#111114; --muted:#6b7280; --brand:#e11d48; }
+  html,body { background:var(--bg); color:var(--ink); font-family:'Inter',ui-sans-serif,system-ui; }
+  *, *::before, *::after { -webkit-user-select:none; -moz-user-select:none; user-select:none; -webkit-tap-highlight-color:transparent; }
+  input, textarea, [contenteditable="true"], .selectable, .selectable * { -webkit-user-select:text; user-select:text; }
+  img { -webkit-user-drag:none; user-drag:none; }
+  ::-webkit-scrollbar { width:10px; height:10px; }
+  ::-webkit-scrollbar-thumb { background:#d4d4d8; border-radius:8px; }
+  ::-webkit-scrollbar-thumb:hover { background:#a1a1aa; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:16px; }
+  .tool-card { transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease; }
+  .tool-card:hover { transform: translateY(-2px); border-color:#fecdd3; box-shadow: 0 10px 30px -12px rgba(225,29,72,.25); }
+  .tool-icon { width:44px; height:44px; border-radius:12px; display:flex; align-items:center; justify-content:center; background:#fff1f2; color:var(--brand); }
+  .drop-zone { border:2px dashed #e4e4e7; border-radius:18px; transition:all .15s ease; }
+  .drop-zone.drag { border-color:var(--brand); background:#fff1f2; }
+  .btn-primary { background:var(--brand); color:#fff; }
+  .btn-primary:hover { background:#be123c; }
+  .btn-ghost { background:#fff; border:1px solid var(--line); }
+  .btn-ghost:hover { background:#fafafa; }
+  .page-thumb { position:relative; background:#fff; border:1px solid var(--line); border-radius:10px; overflow:hidden; transition:transform .12s ease; }
+  .page-thumb:hover { transform:translateY(-1px); }
+  .page-thumb.selected { outline:3px solid var(--brand); }
+  .page-thumb.del { opacity:.4; }
+  .page-thumb.del::after { content:'DELETE'; position:absolute; top:8px; left:8px; background:var(--brand); color:#fff; font-size:10px; font-weight:700; padding:2px 6px; border-radius:6px; letter-spacing:.5px; }
+  .badge { font-size:11px; padding:2px 8px; border-radius:999px; background:#fff1f2; color:var(--brand); font-weight:600; }
+  .chat-shadow { box-shadow: 0 25px 60px -15px rgba(0,0,0,.25); }
+  .crop-wrap { position:relative; display:inline-block; touch-action:none; user-select:none; }
+  .crop-wrap canvas { display:block; max-width:100%; }
+  .crop-rect { position:absolute; border:2px dashed var(--brand); background:rgba(225,29,72,.08); cursor:move; touch-action:none; }
+  .crop-handle { position:absolute; width:14px; height:14px; background:#fff; border:2px solid var(--brand); border-radius:3px; touch-action:none; }
+  .ch-nw { left:-7px; top:-7px; cursor:nwse-resize; }
+  .ch-ne { right:-7px; top:-7px; cursor:nesw-resize; }
+  .ch-sw { left:-7px; bottom:-7px; cursor:nesw-resize; }
+  .ch-se { right:-7px; bottom:-7px; cursor:nwse-resize; }
+  .spinner { width:18px; height:18px; border:2px solid #fecdd3; border-top-color:var(--brand); border-radius:50%; animation:spin 1s linear infinite; display:inline-block; vertical-align:middle; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%); background:#111114; color:#fff; padding:10px 16px; border-radius:10px; font-size:14px; z-index:90; opacity:0; transition:opacity .2s ease; pointer-events:none; max-width:90vw; }
+  .toast.show { opacity:1; }
+  .fade-in { animation: fade .25s ease; }
+  @keyframes fade { from { opacity:0; transform:translateY(4px);} to { opacity:1; transform:none;} }
+  .chip { padding:6px 10px; border-radius:999px; background:#f4f4f5; font-size:12px; font-weight:500; cursor:pointer; }
+  .chip:hover { background:#e4e4e7; }
+  .modal-bg { position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:60; display:flex; align-items:center; justify-content:center; padding:16px; }
+  .modal { background:#fff; border-radius:16px; max-width:480px; width:100%; padding:20px; box-shadow:0 25px 60px -15px rgba(0,0,0,.4); }
+  .preview-frame { width:100%; height:520px; border:1px solid var(--line); border-radius:12px; background:#525659; }
+  .nav-link { font-size:14px; font-weight:500; color:#374151; padding:6px 10px; border-radius:8px; cursor:pointer; }
+  .nav-link:hover { background:#f4f4f5; color:var(--brand); }
+</style>
+</head>
+<body class="min-h-screen">
+
+<header class="sticky top-0 z-30 bg-white/80 backdrop-blur border-b border-[var(--line)]">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center gap-4">
+    <button id="homeBtn" class="flex items-center gap-2">
+      <div class="w-9 h-9 rounded-xl bg-brand text-white flex items-center justify-center font-bold">P</div>
+      <div class="text-left leading-tight">
+        <div class="font-bold text-[15px]">PDF MASTER</div>
+        <div class="text-[11px] text-gray-500 -mt-0.5">Edit PDFs in your browser</div>
+      </div>
+    </button>
+    <div class="flex-1"></div>
+    <nav class="flex items-center gap-1">
+      <button class="nav-link" data-nav="home">Tools</button>
+      <button class="nav-link" data-nav="about">About</button>
+    </nav>
+  </div>
+</header>
+
+<main class="max-w-7xl mx-auto px-4 sm:px-6 py-8 pb-32">
+  <div id="view"></div>
+</main>
+
+<button id="chatToggle" class="fixed bottom-6 right-6 z-40 w-14 h-14 rounded-full btn-primary chat-shadow flex items-center justify-center">
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+</button>
+<div id="chatPanel" class="hidden fixed bottom-24 right-6 z-40 w-[360px] max-w-[92vw] h-[480px] max-h-[70vh] card chat-shadow flex flex-col overflow-hidden">
+  <div class="px-4 py-3 border-b border-[var(--line)] flex items-center gap-3">
+    <div class="w-8 h-8 rounded-full bg-brand text-white flex items-center justify-center font-bold text-sm">PM</div>
+    <div class="flex-1">
+      <div class="font-semibold text-sm">PDF MASTER Assistant</div>
+      <div class="text-[11px] text-gray-500 flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-green-500"></span> Online</div>
+    </div>
+    <button id="chatClose" class="text-gray-400 hover:text-gray-700">✕</button>
+  </div>
+  <div id="chatMessages" class="flex-1 overflow-y-auto p-3 space-y-2 bg-[var(--bg)]"></div>
+  <form id="chatForm" class="border-t border-[var(--line)] p-2 flex gap-2 bg-white">
+    <input id="chatInput" class="selectable flex-1 px-3 py-2 rounded-lg bg-[var(--bg)] outline-none text-sm" placeholder="Ask anything about PDFs…" autocomplete="off"/>
+    <button class="btn-primary px-3 rounded-lg text-sm font-medium">Send</button>
+  </form>
+</div>
+
+<div id="toast" class="toast"></div>
+<div id="modalRoot"></div>
+
+<script>
+const { PDFDocument, degrees, rgb, StandardFonts } = PDFLib;
+const view = document.getElementById('view');
+const toastEl = document.getElementById('toast');
+const toast = (m) => { toastEl.textContent = m; toastEl.classList.add('show'); clearTimeout(toast._t); toast._t=setTimeout(()=>toastEl.classList.remove('show'),2400); };
+const icon = (svg) => `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${svg}</svg>`;
+
+/* Safe base64 for large buffers */
+function u8ToB64(u8){ let s=''; const CH=0x8000; for(let i=0;i<u8.length;i+=CH) s += String.fromCharCode.apply(null, u8.subarray(i,i+CH)); return btoa(s); }
+
+/* Modal helper */
+function modal(html) {
+  return new Promise(resolve => {
+    const root = document.getElementById('modalRoot');
+    root.innerHTML = `<div class="modal-bg"><div class="modal">${html}</div></div>`;
+    root.querySelector('.modal-bg').addEventListener('click', e=>{ if(e.target.classList.contains('modal-bg')){ root.innerHTML=''; resolve(null); } });
+    root._resolve = (v) => { root.innerHTML=''; resolve(v); };
+  });
+}
+
+/* Preview + rename modal, then download */
+async function previewAndDownload(bytes, defaultName, mime='application/pdf') {
+  const blob = bytes instanceof Blob ? bytes : new Blob([bytes], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const isPdf = mime === 'application/pdf';
+  const previewBlock = isPdf
+    ? `<iframe src="${url}" class="preview-frame"></iframe>`
+    : `<div class="text-center text-sm text-gray-500 py-10 border rounded-lg">Preview not available for this file type.</div>`;
+  const root = document.getElementById('modalRoot');
+  root.innerHTML = `
+    <div class="modal-bg">
+      <div class="modal" style="max-width:720px">
+        <div class="flex items-center gap-3 mb-3">
+          <div class="w-9 h-9 rounded-lg bg-brand text-white flex items-center justify-center font-bold">✓</div>
+          <div class="flex-1"><div class="font-bold">Ready to download</div><div class="text-xs text-gray-500">Preview the result and rename if you want.</div></div>
+          <button id="mClose" class="text-gray-400 hover:text-gray-700 text-xl leading-none">✕</button>
+        </div>
+        ${previewBlock}
+        <div class="mt-4">
+          <label class="text-sm font-medium">File name</label>
+          <input id="mName" class="selectable w-full mt-1 px-3 py-2 rounded-lg border border-[var(--line)] outline-none focus:border-brand" value="${defaultName.replace(/"/g,'&quot;')}"/>
+        </div>
+        <div class="mt-4 flex gap-2 justify-end">
+          <button id="mCancel" class="btn-ghost px-4 py-2 rounded-lg text-sm">Cancel</button>
+          <button id="mDownload" class="btn-primary px-5 py-2 rounded-lg text-sm font-semibold">Download</button>
+        </div>
+      </div>
+    </div>`;
+  return new Promise(resolve => {
+    const close = (ok) => { root.innerHTML=''; URL.revokeObjectURL(url); resolve(ok); };
+    root.querySelector('#mClose').onclick = ()=>close(false);
+    root.querySelector('#mCancel').onclick = ()=>close(false);
+    root.querySelector('#mDownload').onclick = () => {
+      let name = root.querySelector('#mName').value.trim() || defaultName;
+      const a = document.createElement('a'); a.href = url; a.download = name; a.click();
+      setTimeout(()=>close(true), 250);
+    };
+    root.querySelector('.modal-bg').addEventListener('click', e=>{ if(e.target.classList.contains('modal-bg')) close(false); });
+  });
+}
+
+/* ---------- Tools ---------- */
+const TOOLS = [
+  { id:'merge',    name:'Merge PDF',     desc:'Combine multiple PDFs into one document.', icon:icon('<path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/><path d="M9 12h6"/><path d="M12 9v6"/>') },
+  { id:'split',    name:'Split PDF',     desc:'Pick pages or ranges to extract.',         icon:icon('<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M12 3v18"/>') },
+  { id:'delete',   name:'Delete Pages',  desc:'See all pages and click to delete.',       icon:icon('<path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>') },
+  { id:'reorder',  name:'Reorder Pages', desc:'Drag thumbnails to rearrange pages.',      icon:icon('<path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/>') },
+  { id:'rotate',   name:'Rotate Pages',  desc:'Rotate selected pages 90°/180°/270°.',     icon:icon('<path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/>') },
+  { id:'compress', name:'Compress PDF',  desc:'Re-encode images to shrink file size.',    icon:icon('<path d="M4 14h6v6"/><path d="M20 10h-6V4"/><path d="M14 10l7-7"/><path d="M3 21l7-7"/>') },
+  { id:'protect',  name:'Protect PDF',   desc:'Lock your PDF behind a password.',         icon:icon('<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>') },
+  { id:'img2pdf',  name:'Images → PDF',  desc:'Turn JPG/PNG photos into a single PDF.',   icon:icon('<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="M21 15l-5-5L5 21"/>') },
+  { id:'pdf2img',  name:'PDF → Images',  desc:'Export each page as a PNG (zipped).',      icon:icon('<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 15l5-5 5 5 4-4 4 4"/>') },
+  { id:'crop',     name:'Crop PDF',      desc:'Manual marquee or auto-crop margins.',     icon:icon('<path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M18 22V8a2 2 0 0 0-2-2H2"/>') },
+  { id:'number',   name:'Page Numbers',  desc:'Add page numbers in any corner.',          icon:icon('<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 17V9l-2 2"/><path d="M14 9h3v3h-3z"/>') },
+  { id:'watermark',name:'Watermark',     desc:'Stamp text across every page.',            icon:icon('<path d="M3 3l18 18"/><path d="M21 3L3 21"/>') },
+];
+
+/* ---------- Router ---------- */
+function go(toolId) {
+  if (toolId === 'about') return renderAbout();
+  if (!toolId || toolId==='home') return renderHome();
+  const tool = TOOLS.find(t=>t.id===toolId); if (!tool) return renderHome();
+  renderTool(tool);
+}
+document.getElementById('homeBtn').onclick = ()=>go('home');
+document.querySelectorAll('[data-nav]').forEach(b=>b.onclick=()=>go(b.dataset.nav));
+
+function renderHome() {
+  view.innerHTML = `
+    <section class="fade-in">
+      <div class="text-center max-w-2xl mx-auto mb-10 mt-2">
+        <span class="badge">All-in-one PDF toolkit</span>
+        <h1 class="text-3xl sm:text-4xl font-extrabold mt-4 tracking-tight">PDF MASTER — every PDF tool you need.</h1>
+        <p class="text-gray-500 mt-3">Merge, split, compress, protect, crop, convert — everything runs in your browser. Your files never leave your device.</p>
+      </div>
+      <div id="grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+    </section>`;
+  const grid = document.getElementById('grid');
+  grid.innerHTML = TOOLS.map(t=>`
+    <button data-id="${t.id}" class="tool-card text-left card p-5 flex gap-4 items-start">
+      <div class="tool-icon shrink-0">${t.icon}</div>
+      <div class="flex-1">
+        <div class="font-semibold">${t.name}</div>
+        <div class="text-sm text-gray-500 mt-1">${t.desc}</div>
+      </div>
+    </button>`).join('');
+  grid.querySelectorAll('button[data-id]').forEach(b=>b.onclick=()=>go(b.dataset.id));
+}
+
+function renderAbout() {
+  view.innerHTML = `
+    <section class="fade-in max-w-3xl mx-auto">
+      <div class="card p-8">
+        <div class="flex items-center gap-3 mb-6">
+          <div class="w-12 h-12 rounded-xl bg-brand text-white flex items-center justify-center text-xl font-bold">P</div>
+          <div>
+            <h1 class="text-2xl font-extrabold">About PDF MASTER</h1>
+            <p class="text-sm text-gray-500">An all-in-one, privacy-first PDF toolkit.</p>
+          </div>
+        </div>
+        <div class="space-y-4 text-[15px] leading-relaxed text-gray-700 selectable">
+          <p><strong>PDF MASTER</strong> is a free, browser-based application that lets you edit, transform and protect PDF files without ever uploading them to a server. Every tool — from merging and splitting to compression, cropping and password protection — runs entirely inside your browser using modern JavaScript. That means your documents stay on your device, your data stays private, and the app feels as fast as a native desktop tool.</p>
+          <p>The app bundles everything most people need from a PDF editor in a single page: combine multiple PDFs, extract or delete specific pages, reorder pages by drag-and-drop, rotate, compress to reduce file size, manually crop with a drag selection or auto-crop white margins, convert images to PDF and PDFs back to images, add watermarks and page numbers, and lock your PDF behind a password.</p>
+          <p>Whether you're a student preparing assignments, a professional sharing reports, or just someone who needs to quickly tidy up a PDF, PDF MASTER aims to be the fastest, simplest and most private way to get it done — no signup, no ads, no upload.</p>
+        </div>
+        <hr class="my-6 border-[var(--line)]"/>
+        <div>
+          <h2 class="font-bold text-lg mb-3">Contact</h2>
+          <div class="space-y-2 text-sm selectable">
+            <div class="flex items-center gap-3"><span class="badge">Owner</span><a href="mailto:catversstudio@gmail.com" class="text-brand font-medium hover:underline">catversstudio@gmail.com</a></div>
+            <div class="flex items-center gap-3"><span class="badge">Contact</span><a href="mailto:asisasastudent@gmail.com" class="text-brand font-medium hover:underline">asisasastudent@gmail.com</a></div>
+          </div>
+        </div>
+        <div class="mt-6 text-xs text-gray-400">© ${new Date().getFullYear()} PDF MASTER. Built for privacy.</div>
+      </div>
+    </section>`;
+}
+
+function toolHeader(tool) {
+  return `
+  <div class="flex items-center gap-3 mb-6 fade-in">
+    <button id="backBtn" class="btn-ghost w-10 h-10 rounded-xl flex items-center justify-center">←</button>
+    <div class="tool-icon">${tool.icon}</div>
+    <div>
+      <div class="font-bold text-lg">${tool.name}</div>
+      <div class="text-sm text-gray-500">${tool.desc}</div>
+    </div>
+  </div>`;
+}
+
+function dropZone({ accept='application/pdf', multiple=true, label='Drop PDFs here or click to browse' }) {
+  return `
+  <label class="drop-zone block p-10 text-center cursor-pointer card">
+    <input type="file" class="hidden" accept="${accept}" ${multiple?'multiple':''}/>
+    <div class="mx-auto w-14 h-14 rounded-2xl bg-[var(--bg)] flex items-center justify-center mb-3">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#e11d48" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+    </div>
+    <div class="font-semibold">${label}</div>
+    <div class="text-sm text-gray-500 mt-1">Files are processed locally in your browser.</div>
+  </label>`;
+}
+
+function wireDrop(el, onFiles) {
+  const input = el.querySelector('input[type=file]');
+  input.onchange = e => onFiles([...e.target.files]);
+  ['dragenter','dragover'].forEach(ev=>el.addEventListener(ev, e=>{ e.preventDefault(); el.classList.add('drag'); }));
+  ['dragleave','drop'].forEach(ev=>el.addEventListener(ev, e=>{ e.preventDefault(); el.classList.remove('drag'); }));
+  el.addEventListener('drop', e=>{ if (e.dataTransfer.files.length) onFiles([...e.dataTransfer.files]); });
+}
+
+/* Inline live preview of a PDF buffer */
+async function inlinePreview(container, buf) {
+  const url = URL.createObjectURL(new Blob([buf.slice(0)], {type:'application/pdf'}));
+  container.innerHTML = `
+    <div class="card p-3 mt-4">
+      <div class="text-xs text-gray-500 mb-2 font-medium">Live preview</div>
+      <iframe src="${url}" class="preview-frame"></iframe>
+    </div>`;
+  return url;
+}
+
+/* ---------- Tool renderers ---------- */
+function renderTool(tool) {
+  view.innerHTML = toolHeader(tool) + `<div id="toolBody" class="fade-in"></div>`;
+  document.getElementById('backBtn').onclick = ()=>go();
+  ({
+    merge: toolMerge, split: toolSplit,
+    delete: toolDelete, reorder: toolReorder, rotate: toolRotate,
+    compress: toolCompress, protect: toolProtect,
+    img2pdf: toolImg2Pdf, pdf2img: toolPdf2Img,
+    crop: toolCrop, number: toolNumber, watermark: toolWatermark,
+  })[tool.id]();
+}
+
+/* ---------- Merge ---------- */
+function toolMerge() {
+  const body = document.getElementById('toolBody');
+  body.innerHTML = dropZone({label:'Drop PDFs to merge (2+)'}) + `
+    <div id="list" class="mt-4 space-y-2"></div>
+    <div id="pvWrap"></div>
+    <div class="mt-6 flex gap-3"><button id="go" class="btn-primary px-5 py-2.5 rounded-xl font-medium disabled:opacity-40" disabled>Merge & Preview</button></div>`;
+  const dz = body.querySelector('.drop-zone'); const list = document.getElementById('list'); const goBtn = document.getElementById('go');
+  let files = [];
+  const render = () => {
+    list.innerHTML = files.map((f,i)=>`<div class="card px-4 py-3 flex items-center gap-3"><div class="badge">${i+1}</div><div class="flex-1 truncate">${f.name}</div><div class="text-xs text-gray-500">${(f.size/1024).toFixed(0)} KB</div><button data-i="${i}" class="text-gray-400 hover:text-brand text-lg leading-none">✕</button></div>`).join('');
+    list.querySelectorAll('button[data-i]').forEach(b=>b.onclick=()=>{ files.splice(+b.dataset.i,1); render(); });
+    goBtn.disabled = files.length < 2;
+  };
+  wireDrop(dz, fs => { files.push(...fs.filter(f=>f.type==='application/pdf')); render(); });
+  goBtn.onclick = async () => {
+    goBtn.disabled = true; goBtn.innerHTML = '<span class="spinner mr-2"></span>Merging…';
+    try {
+      const out = await PDFDocument.create();
+      for (const f of files) {
+        const src = await PDFDocument.load(await f.arrayBuffer(), { ignoreEncryption:true });
+        const pages = await out.copyPages(src, src.getPageIndices());
+        pages.forEach(p=>out.addPage(p));
+      }
+      const bytes = await out.save();
+      await previewAndDownload(bytes, 'merged.pdf');
+    } catch(e){ toast('Failed: '+e.message); }
+    goBtn.disabled = false; goBtn.textContent = 'Merge & Preview';
+  };
+}
+
+/* ---------- Page-thumb tools: shared ---------- */
+async function loadThumbsGrid(buf, container, opts={}) {
+  container.innerHTML = '<div class="col-span-full text-center text-sm text-gray-500 py-8"><span class="spinner mr-2"></span>Rendering pages…</div>';
+  const pdf = await pdfjsLib.getDocument({ data: buf.slice(0) }).promise;
+  const info = []; container.innerHTML='';
+  for (let i=1;i<=pdf.numPages;i++) {
+    const page = await pdf.getPage(i);
+    const vp = page.getViewport({ scale:0.5 });
+    const c = document.createElement('canvas'); c.width=vp.width; c.height=vp.height;
+    await page.render({ canvasContext:c.getContext('2d'), viewport:vp }).promise;
+    const wrap = document.createElement('div');
+    wrap.className='page-thumb p-2 cursor-pointer';
+    wrap.dataset.idx = i-1;
+    wrap.innerHTML = `<div class="aspect-[3/4] flex items-center justify-center overflow-hidden bg-gray-50 rounded"><img style="max-width:100%;max-height:100%;transition:transform .2s ease" src="${c.toDataURL()}"/></div><div class="mt-1 text-xs text-center text-gray-500 font-medium">Page ${i}</div>`;
+    if (opts.draggable) wrap.draggable = true;
+    container.appendChild(wrap);
+    info.push({ index:i-1, rotate:0, selected:false, el:wrap });
+  }
+  return info;
+}
+
+/* ---------- Delete (full thumbnail picker) ---------- */
+function toolDelete() {
+  const body = document.getElementById('toolBody');
+  body.innerHTML = dropZone({multiple:false, label:'Drop a PDF to choose pages to delete'}) + `
+    <div id="ctrls" class="hidden mt-4 flex flex-wrap items-center gap-3">
+      <div class="text-sm text-gray-600">Click pages to mark for deletion. <span id="cnt" class="font-semibold text-brand">0</span> selected.</div>
+      <button id="selAll" class="btn-ghost px-3 py-1.5 rounded-lg text-xs">Select all</button>
+      <button id="clr" class="btn-ghost px-3 py-1.5 rounded-lg text-xs">Clear</button>
+      <div class="flex-1"></div>
+      <button id="go" class="btn-primary px-5 py-2.5 rounded-xl font-medium">Delete & Preview</button>
+    </div>
+    <div id="thumbs" class="mt-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3"></div>`;
+  const dz = body.querySelector('.drop-zone'); const thumbs = document.getElementById('thumbs');
+  let buf=null, info=[];
+  const updateCnt = ()=>document.getElementById('cnt').textContent = info.filter(p=>p.selected).length;
+  wireDrop(dz, async fs => {
+    if (!fs[0]) return; buf = await fs[0].arrayBuffer();
+    info = await loadThumbsGrid(buf, thumbs);
+    info.forEach(p => p.el.onclick = () => { p.selected = !p.selected; p.el.classList.toggle('del', p.selected); updateCnt(); });
+    document.getElementById('ctrls').classList.remove('hidden');
+    updateCnt();
+  });
+  document.addEventListener('click', async e=>{
+    if (e.target.id==='selAll' && info.length) { info.forEach(p=>{ p.selected=true; p.el.classList.add('del'); }); updateCnt(); }
+    if (e.target.id==='clr' && info.length) { info.forEach(p=>{ p.selected=false; p.el.classList.remove('del'); }); updateCnt(); }
+    if (e.target.id==='go' && buf) {
+      const keep = info.filter(p=>!p.selected);
+      if (!keep.length) return toast('Cannot delete every page');
+      const src = await PDFDocument.load(buf,{ignoreEncryption:true});
+      const out = await PDFDocument.create();
+      const copied = await out.copyPages(src, keep.map(p=>p.index));
+      copied.forEach(p=>out.addPage(p));
+      await previewAndDownload(await out.save(), 'edited.pdf');
+    }
+  });
+}
+
+/* ---------- Reorder ---------- */
+function toolReorder() {
+  const body = document.getElementById('toolBody');
+  body.innerHTML = dropZone({multiple:false}) + `
+    <div id="ctrls" class="hidden mt-4 flex items-center gap-3">
+      <div class="text-sm text-gray-600">Drag thumbnails to reorder.</div>
+      <div class="flex-1"></div>
+      <button id="go" class="btn-primary px-5 py-2.5 rounded-xl font-medium">Save & Preview</button>
+    </div>
+    <div id="thumbs" class="mt-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3"></div>`;
+  const dz = body.querySelector('.drop-zone'); const thumbs = document.getElementById('thumbs');
+  let buf=null, info=[];
+  function bindDnd() {
+    let dragIdx=null;
+    [...thumbs.children].forEach((el,i)=>{
+      el.draggable=true;
+      el.ondragstart=()=>{ dragIdx=i; el.style.opacity='.4'; };
+      el.ondragend=()=>el.style.opacity='1';
+      el.ondragover=e=>e.preventDefault();
+      el.ondrop=()=>{ if(dragIdx===null||dragIdx===i)return; const [m]=info.splice(dragIdx,1); info.splice(i,0,m); thumbs.innerHTML=''; info.forEach(p=>thumbs.appendChild(p.el)); bindDnd(); };
+    });
+  }
+  wireDrop(dz, async fs => { buf = await fs[0].arrayBuffer(); info = await loadThumbsGrid(buf, thumbs, {draggable:true}); document.getElementById('ctrls').classList.remove('hidden'); bindDnd(); });
+  document.addEventListener('click', async e=>{
+    if (e.target.id!=='go' || !buf) return;
+    const src = await PDFDocument.load(buf,{ignoreEncryption:true}); const out = await PDFDocument.create();
+    const copied = await out.copyPages(src, info.map(p=>p.index)); copied.forEach(p=>out.addPage(p));
+    await previewAndDownload(await out.save(), 'reordered.pdf');
+  });
+}
+
+/* ---------- Rotate ---------- */
+function toolRotate() {
+  const body = document.getElementById('toolBody');
+  body.innerHTML = dropZone({multiple:false}) + `
+    <div id="ctrls" class="hidden mt-4 flex flex-wrap items-center gap-2">
+      <div class="text-sm text-gray-600">Select pages, then rotate.</div>
+      <button id="rL" class="btn-ghost px-3 py-2 rounded-lg text-sm">↺ 90°</button>
+      <button id="rR" class="btn-ghost px-3 py-2 rounded-lg text-sm">↻ 90°</button>
+      <button id="r180" class="btn-ghost px-3 py-2 rounded-lg text-sm">180°</button>
+      <div class="flex-1"></div>
+      <button id="go" class="btn-primary px-5 py-2.5 rounded-xl font-medium">Save & Preview</button>
+    </div>
+    <div id="thumbs" class="mt-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3"></div>`;
+  const dz = body.querySelector('.drop-zone'); const thumbs = document.getElementById('thumbs');
+  let buf=null, info=[];
+  wireDrop(dz, async fs => {
+    buf = await fs[0].arrayBuffer(); info = await loadThumbsGrid(buf, thumbs);
+    info.forEach(p => p.el.onclick = () => { p.selected=!p.selected; p.el.classList.toggle('selected', p.selected); });
+    document.getElementById('ctrls').classList.remove('hidden');
+  });
+  const apply = d => info.forEach(p=>{ if (p.selected) { p.rotate=(p.rotate+d+360)%360; p.el.querySelector('img').style.transform=`rotate(${p.rotate}deg)`; } });
+  document.addEventListener('click', async e=>{
+    if (e.target.id==='rL') apply(-90);
+    if (e.target.id==='rR') apply(90);
+    if (e.target.id==='r180') apply(180);
+    if (e.target.id==='go' && buf) {
+      const src = await PDFDocument.load(buf,{ignoreEncryption:true}); const out = await PDFDocument.create();
+      const copied = await out.copyPages(src, info.map(p=>p.index));
+      copied.forEach((p,i)=>{ if (info[i].rotate) p.setRotation(degrees((src.getPage(info[i].index).getRotation().angle + info[i].rotate)%360)); out.addPage(p); });
+      await previewAndDownload(await out.save(), 'rotated.pdf');
+    }
+  });
+}
+
+/* ---------- Split ---------- */
+function toolSplit() {
+  const body = document.getElementById('toolBody');
+  body.innerHTML = dropZone({multiple:false}) + `
+    <div id="opts" class="hidden card p-5 mt-4 space-y-4">
+      <div class="text-sm text-gray-600">Total pages: <span id="total" class="font-semibold text-gray-900"></span></div>
+      <div>
+        <label class="text-sm font-medium">Page ranges <span class="text-gray-400 font-normal">(e.g. <code class="selectable">1-3,5,8-10</code>)</span></label>
+        <input id="ranges" class="selectable w-full mt-2 px-3 py-2 rounded-lg border border-[var(--line)] outline-none focus:border-brand" placeholder="1-3,5"/>
+      </div>
+      <div class="text-xs text-gray-500">Or click thumbnails below to toggle which pages to keep.</div>
+      <button id="go" class="btn-primary px-5 py-2.5 rounded-xl font-medium">Split & Preview</button>
+    </div>
+    <div id="thumbs" class="mt-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3"></div>`;
+  const dz = body.querySelector('.drop-zone'); const thumbs = document.getElementById('thumbs');
+  let buf=null, total=0, info=[];
+  wireDrop(dz, async fs => {
+    buf = await fs[0].arrayBuffer();
+    const pdf = await PDFDocument.load(buf,{ignoreEncryption:true}); total = pdf.getPageCount();
+    document.getElementById('total').textContent = total; document.getElementById('opts').classList.remove('hidden');
+    info = await loadThumbsGrid(buf, thumbs);
+    info.forEach(p => p.el.onclick = () => { p.selected=!p.selected; p.el.classList.toggle('selected', p.selected); });
+  });
+  document.addEventListener('click', async e=>{
+    if (e.target.id!=='go' || !buf) return;
+    let idxs = [];
+    const txt = document.getElementById('ranges').value.trim();
+    if (txt) {
+      txt.split(',').forEach(part=>{ const [a,b]=part.split('-').map(n=>parseInt(n.trim())); if(isNaN(a))return; for (let i=a;i<=(b||a);i++) if(i>=1&&i<=total) idxs.push(i-1); });
+    } else {
+      idxs = info.filter(p=>p.selected).map(p=>p.index);
+    }
+    if(!idxs.length) return toast('Enter a range or select pages');
+    const src = await PDFDocument.load(buf,{ignoreEncryption:true}); const out = await PDFDocument.create();
+    const copied = await out.copyPages(src, idxs); copied.forEach(p=>out.addPage(p));
+    await previewAndDownload(await out.save(),'split.pdf');
+  });
+}
+
+/* ---------- Compress ---------- */
+function toolCompress() {
+  const body = document.getElementById('toolBody');
+  body.innerHTML = dropZone({multiple:false}) + `
+    <div id="opts" class="hidden card p-5 mt-4 space-y-4">
+      <div><label class="text-sm font-medium">Image quality: <span id="qv" class="font-semibold">60</span>%</label>
+        <input id="q" type="range" min="20" max="90" value="60" class="w-full mt-2 accent-brand"/>
+        <div class="text-xs text-gray-500 mt-1">Lower = smaller file. Pages re-render as JPEGs.</div></div>
+      <div><label class="text-sm font-medium">Scale: <span id="sv" class="font-semibold">1.5</span>×</label>
+        <input id="s" type="range" min="0.8" max="2.5" step="0.1" value="1.5" class="w-full mt-2 accent-brand"/></div>
+      <button id="go" class="btn-primary px-5 py-2.5 rounded-xl font-medium">Compress & Preview</button>
+    </div>
+    <div id="pv"></div>`;
+  const dz = body.querySelector('.drop-zone'); let buf=null, origSize=0;
+  wireDrop(dz, async fs => { buf = await fs[0].arrayBuffer(); origSize=fs[0].size; document.getElementById('opts').classList.remove('hidden'); inlinePreview(document.getElementById('pv'), buf); });
+  document.addEventListener('input', e=>{
+    if (e.target.id==='q') document.getElementById('qv').textContent=e.target.value;
+    if (e.target.id==='s') document.getElementById('sv').textContent=e.target.value;
+  });
+  document.addEventListener('click', async e=>{
+    if (e.target.id!=='go' || !buf) return;
+    const btn = e.target; btn.disabled=true; btn.innerHTML='<span class="spinner mr-2"></span>Compressing…';
+    try {
+      const pdf = await pdfjsLib.getDocument({ data: buf.slice(0) }).promise;
+      const out = await PDFDocument.create();
+      const scale = parseFloat(document.getElementById('s').value), quality = parseInt(document.getElementById('q').value)/100;
+      for (let i=1;i<=pdf.numPages;i++) {
+        const page = await pdf.getPage(i); const vp = page.getViewport({scale});
+        const c = document.createElement('canvas'); c.width=vp.width; c.height=vp.height;
+        await page.render({ canvasContext:c.getContext('2d'), viewport:vp }).promise;
+        const blob = await new Promise(r=>c.toBlob(r,'image/jpeg',quality));
+        const img = await out.embedJpg(await blob.arrayBuffer());
+        const p = out.addPage([vp.width, vp.height]);
+        p.drawImage(img,{x:0,y:0,width:vp.width,height:vp.height});
+      }
+      const bytes = await out.save();
+      toast(`${(origSize/1024).toFixed(0)} KB → ${(bytes.byteLength/1024).toFixed(0)} KB`);
+      await previewAndDownload(bytes,'compressed.pdf');
+    } catch(err){ toast('Failed: '+err.message); }
+    btn.disabled=false; btn.textContent='Compress & Preview';
+  });
+}
+
+/* ---------- Protect ---------- */
+function toolProtect() {
+  const body = document.getElementById('toolBody');
+  body.innerHTML = dropZone({multiple:false}) + `
+    <div id="opts" class="hidden card p-5 mt-4 space-y-4">
+      <div class="rounded-lg bg-blue-50 border border-blue-200 px-3 py-2 text-xs text-blue-800">We wrap your PDF inside a password-locked HTML page. Open the downloaded <code>.html</code> file in any browser, enter the password, and your PDF unlocks.</div>
+      <div>
+        <label class="text-sm font-medium">Password</label>
+        <input id="pw" type="password" class="selectable w-full mt-2 px-3 py-2 rounded-lg border border-[var(--line)] outline-none focus:border-brand" placeholder="Set a strong password"/>
+      </div>
+      <div>
+        <label class="text-sm font-medium">Confirm password</label>
+        <input id="pw2" type="password" class="selectable w-full mt-2 px-3 py-2 rounded-lg border border-[var(--line)] outline-none focus:border-brand"/>
+      </div>
+      <button id="go" class="btn-primary px-5 py-2.5 rounded-xl font-medium">Protect & Preview</button>
+    </div>
+    <div id="pv"></div>`;
+  const dz = body.querySelector('.drop-zone'); let buf=null, fname='document.pdf';
+  wireDrop(dz, async fs => { buf = await fs[0].arrayBuffer(); fname=fs[0].name; document.getElementById('opts').classList.remove('hidden'); inlinePreview(document.getElementById('pv'), buf); });
+  document.addEventListener('click', async e=>{
+    if (e.target.id!=='go' || !buf) return;
+    const pw = document.getElementById('pw').value;
+    const pw2 = document.getElementById('pw2').value;
+    if(!pw) return toast('Enter a password');
+    if(pw!==pw2) return toast('Passwords do not match');
+    const btn = e.target; btn.disabled=true; btn.innerHTML='<span class="spinner mr-2"></span>Encrypting…';
+    try {
+      const u8 = new Uint8Array(buf);
+      const b64 = u8ToB64(u8);
+      const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pw));
+      const hex = [...new Uint8Array(hash)].map(b=>b.toString(16).padStart(2,'0')).join('');
+      const safeName = fname.replace(/[<>"']/g,'_');
+      const html = `<!doctype html>
+<html><head><meta charset="utf-8"><title>Protected: ${safeName}</title>
+<style>
+body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;margin:0;background:#0f172a;color:#fff;min-height:100vh;display:flex;align-items:center;justify-content:center}
+.box{background:#1e293b;padding:32px;border-radius:16px;box-shadow:0 25px 60px -15px rgba(0,0,0,.6);max-width:380px;width:90%;text-align:center}
+h2{margin:0 0 6px;font-size:20px} p{color:#94a3b8;font-size:14px;margin:6px 0 18px}
+input{width:100%;padding:12px;border:1px solid #334155;background:#0f172a;color:#fff;border-radius:10px;font-size:15px;box-sizing:border-box;outline:none}
+input:focus{border-color:#e11d48}
+button{width:100%;padding:12px;margin-top:10px;background:#e11d48;color:#fff;border:0;border-radius:10px;cursor:pointer;font-weight:600;font-size:15px}
+button:hover{background:#be123c} .err{color:#fb7185;font-size:13px;margin-top:10px;min-height:18px}
+.lock{font-size:42px;margin-bottom:8px}
+iframe{position:fixed;inset:0;width:100vw;height:100vh;border:0;background:#525659}
+</style></head><body>
+<div id="gate" class="box">
+  <div class="lock">🔒</div>
+  <h2>Protected PDF</h2>
+  <p>${safeName}</p>
+  <form id="f"><input id="p" type="password" placeholder="Password" autofocus/><button type="submit">Unlock</button></form>
+  <div id="e" class="err"></div>
+</div>
+<script>
+const D=${JSON.stringify(b64)},H=${JSON.stringify(hex)};
+document.getElementById('f').addEventListener('submit',async ev=>{
+  ev.preventDefault();
+  const p=document.getElementById('p').value;
+  const h=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(p));
+  const x=[...new Uint8Array(h)].map(b=>b.toString(16).padStart(2,'0')).join('');
+  if(x!==H){document.getElementById('e').textContent='Wrong password';return;}
+  const bin=atob(D);const u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);
+  const url=URL.createObjectURL(new Blob([u],{type:'application/pdf'}));
+  document.body.innerHTML='<iframe src="'+url+'"></iframe>';
+});
+<\/script></body></html>`;
+      const outName = fname.replace(/\.pdf$/i,'')+'-protected.html';
+      await previewAndDownload(new Blob([html],{type:'text/html'}), outName, 'text/html');
+      toast('Protected ✓ Open the HTML to view your locked PDF.');
+    } catch(err) { toast('Failed: '+err.message); }
+    btn.disabled=false; btn.textContent='Protect & Preview';
+  });
+}
+
+/* ---------- Images → PDF ---------- */
+function toolImg2Pdf() {
+  const body = document.getElementById('toolBody');
+  body.innerHTML = dropZone({accept:'image/*', label:'Drop images (JPG/PNG)'}) + `
+    <div id="imgs" class="mt-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3"></div>
+    <div class="mt-6 flex gap-3"><button id="go" class="btn-primary px-5 py-2.5 rounded-xl font-medium disabled:opacity-40" disabled>Create PDF & Preview</button></div>`;
+  const dz = body.querySelector('.drop-zone'); const list = document.getElementById('imgs'); const goBtn = document.getElementById('go');
+  let imgs=[];
+  const render=()=>{
+    list.innerHTML = imgs.map((f,i)=>`<div class="card p-2 relative"><img src="${URL.createObjectURL(f)}" class="w-full aspect-square object-cover rounded"/><button data-i="${i}" class="absolute top-1 right-1 w-7 h-7 rounded-full bg-white shadow text-xs">✕</button><div class="text-xs mt-1 truncate text-center selectable">${f.name}</div></div>`).join('');
+    list.querySelectorAll('button').forEach(b=>b.onclick=()=>{ imgs.splice(+b.dataset.i,1); render(); });
+    goBtn.disabled = !imgs.length;
+  };
+  wireDrop(dz, fs => { imgs.push(...fs.filter(f=>f.type.startsWith('image/'))); render(); });
+  goBtn.onclick = async () => {
+    try {
+      const out = await PDFDocument.create();
+      for (const f of imgs) {
+        const ab = await f.arrayBuffer();
+        const img = f.type==='image/png' ? await out.embedPng(ab) : await out.embedJpg(ab);
+        const p = out.addPage([img.width,img.height]);
+        p.drawImage(img,{x:0,y:0,width:img.width,height:img.height});
+      }
+      await previewAndDownload(await out.save(),'images.pdf');
+    } catch(e){ toast('Failed: '+e.message); }
+  };
+}
+
+/* ---------- PDF → Images ---------- */
+function toolPdf2Img() {
+  const body = document.getElementById('toolBody');
+  body.innerHTML = dropZone({multiple:false}) + `<div id="pv" class="mt-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3"></div><div class="mt-6"><button id="go" class="btn-primary px-5 py-2.5 rounded-xl font-medium hidden">Download ZIP</button></div>`;
+  const dz = body.querySelector('.drop-zone'); let canvases=[];
+  wireDrop(dz, async fs => {
+    const pv = document.getElementById('pv'); pv.innerHTML='<div class="col-span-full text-sm text-gray-500"><span class="spinner mr-2"></span>Rendering…</div>';
+    const pdf = await pdfjsLib.getDocument({ data: await fs[0].arrayBuffer() }).promise;
+    canvases = []; pv.innerHTML='';
+    for (let i=1;i<=pdf.numPages;i++) {
+      const page=await pdf.getPage(i); const vp=page.getViewport({scale:1.5});
+      const c=document.createElement('canvas'); c.width=vp.width; c.height=vp.height;
+      await page.render({canvasContext:c.getContext('2d'),viewport:vp}).promise;
+      canvases.push(c);
+      const t=document.createElement('div'); t.className='page-thumb p-2'; t.innerHTML=`<img src="${c.toDataURL()}" class="w-full rounded"/><div class="text-xs text-center mt-1 text-gray-500">Page ${i}</div>`; pv.appendChild(t);
+    }
+    document.getElementById('go').classList.remove('hidden');
+  });
+  document.addEventListener('click', async e=>{
+    if (e.target.id!=='go' || !canvases.length) return;
+    const zip = new JSZip();
+    for (let i=0;i<canvases.length;i++) {
+      const blob = await new Promise(r=>canvases[i].toBlob(r,'image/png'));
+      zip.file(`page-${String(i+1).padStart(3,'0')}.png`, blob);
+    }
+    const out = await zip.generateAsync({type:'blob'});
+    await previewAndDownload(out,'pages.zip','application/zip');
+  });
+}
+
+/* ---------- Crop (fixed manual drag with pointer events) ---------- */
+function toolCrop() {
+  const body = document.getElementById('toolBody');
+  body.innerHTML = dropZone({multiple:false}) + `
+    <div id="opts" class="hidden mt-4">
+      <div class="flex flex-wrap gap-3 mb-4">
+        <button id="auto" class="btn-ghost px-4 py-2 rounded-lg text-sm">Auto-crop white margins</button>
+        <button id="reset" class="btn-ghost px-4 py-2 rounded-lg text-sm">Reset</button>
+        <div class="flex-1"></div>
+        <button id="go" class="btn-primary px-5 py-2.5 rounded-xl font-medium">Apply to all & Preview</button>
+      </div>
+      <div class="card p-4 flex justify-center overflow-auto"><div id="cropWrap" class="crop-wrap"></div></div>
+      <div class="text-xs text-gray-500 mt-3 text-center">Drag inside the red box to move it. Drag any corner handle to resize. The same crop is applied to every page.</div>
+    </div>`;
+  const dz = body.querySelector('.drop-zone'); let buf=null, canvas=null, rect={x:0,y:0,w:0,h:0}, pageVp=null, wrapEl=null;
+  wireDrop(dz, async fs => { buf = await fs[0].arrayBuffer(); await renderPreview(); document.getElementById('opts').classList.remove('hidden'); });
+
+  async function renderPreview() {
+    const pdf = await pdfjsLib.getDocument({data:buf.slice(0)}).promise;
+    const page = await pdf.getPage(1); pageVp = page.getViewport({scale:1});
+    const scale = Math.min(720/pageVp.width, 800/pageVp.height, 1.4);
+    const vp = page.getViewport({scale});
+    canvas = document.createElement('canvas'); canvas.width=vp.width; canvas.height=vp.height;
+    await page.render({canvasContext:canvas.getContext('2d'),viewport:vp}).promise;
+    wrapEl = document.getElementById('cropWrap'); wrapEl.innerHTML=''; wrapEl.appendChild(canvas);
+    rect = { x:30, y:30, w:vp.width-60, h:vp.height-60 };
+    mountRect();
+  }
+
+  function mountRect() {
+    let r = wrapEl.querySelector('.crop-rect');
+    if (!r) {
+      r = document.createElement('div'); r.className='crop-rect';
+      r.innerHTML = '<div class="crop-handle ch-nw" data-h="nw"></div><div class="crop-handle ch-ne" data-h="ne"></div><div class="crop-handle ch-sw" data-h="sw"></div><div class="crop-handle ch-se" data-h="se"></div>';
+      wrapEl.appendChild(r);
+      attachDrag(r);
+    }
+    paintRect();
+  }
+  function paintRect() {
+    const r = wrapEl.querySelector('.crop-rect');
+    Object.assign(r.style, { left:rect.x+'px', top:rect.y+'px', width:rect.w+'px', height:rect.h+'px' });
+  }
+  function attachDrag(r) {
+    let mode=null, handle=null, start=null, startRect=null;
+    const wrapRect = () => wrapEl.getBoundingClientRect();
+    const onDown = (e) => {
+      const t = e.target;
+      if (t.classList && t.classList.contains('crop-handle')) { mode='resize'; handle=t.dataset.h; }
+      else if (t === r) { mode='move'; }
+      else return;
+      const p = e.touches ? e.touches[0] : e;
+      start = { x: p.clientX, y: p.clientY };
+      startRect = {...rect};
+      e.preventDefault();
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', onUp);
+      window.addEventListener('touchmove', onMove, {passive:false});
+      window.addEventListener('touchend', onUp);
+    };
+    const onMove = (e) => {
+      if (!mode) return;
+      const p = e.touches ? e.touches[0] : e;
+      const dx = p.clientX - start.x, dy = p.clientY - start.y;
+      if (mode==='move') {
+        rect.x = Math.max(0, Math.min(canvas.width - startRect.w, startRect.x + dx));
+        rect.y = Math.max(0, Math.min(canvas.height - startRect.h, startRect.y + dy));
+      } else {
+        let nx=startRect.x, ny=startRect.y, nw=startRect.w, nh=startRect.h;
+        if (handle.includes('e')) nw = Math.max(30, startRect.w + dx);
+        if (handle.includes('s')) nh = Math.max(30, startRect.h + dy);
+        if (handle.includes('w')) { nx = startRect.x + dx; nw = startRect.w - dx; if (nw<30){ nx=startRect.x+startRect.w-30; nw=30; } }
+        if (handle.includes('n')) { ny = startRect.y + dy; nh = startRect.h - dy; if (nh<30){ ny=startRect.y+startRect.h-30; nh=30; } }
+        nx = Math.max(0, nx); ny = Math.max(0, ny);
+        nw = Math.min(nw, canvas.width - nx); nh = Math.min(nh, canvas.height - ny);
+        rect = { x:nx, y:ny, w:nw, h:nh };
+      }
+      paintRect();
+      e.preventDefault();
+    };
+    const onUp = () => {
+      mode=null; handle=null;
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      window.removeEventListener('touchmove', onMove);
+      window.removeEventListener('touchend', onUp);
+    };
+    r.addEventListener('mousedown', onDown);
+    r.addEventListener('touchstart', onDown, {passive:false});
+  }
+
+  document.addEventListener('click', async e=>{
+    if (e.target.id==='reset' && canvas) { rect={x:30,y:30,w:canvas.width-60,h:canvas.height-60}; paintRect(); }
+    if (e.target.id==='auto' && canvas) {
+      const ctx=canvas.getContext('2d'); const d=ctx.getImageData(0,0,canvas.width,canvas.height).data;
+      const isWhite=(i)=>d[i]>240&&d[i+1]>240&&d[i+2]>240;
+      let t=0,b=canvas.height-1,l=0,rr=canvas.width-1;
+      outer: for(;t<canvas.height;t++){ for(let x=0;x<canvas.width;x++){ if(!isWhite((t*canvas.width+x)*4)) break outer; } }
+      outer: for(;b>t;b--){ for(let x=0;x<canvas.width;x++){ if(!isWhite((b*canvas.width+x)*4)) break outer; } }
+      outer: for(;l<canvas.width;l++){ for(let y=t;y<b;y++){ if(!isWhite((y*canvas.width+l)*4)) break outer; } }
+      outer: for(;rr>l;rr--){ for(let y=t;y<b;y++){ if(!isWhite((y*canvas.width+rr)*4)) break outer; } }
+      rect={x:Math.max(0,l-4),y:Math.max(0,t-4),w:Math.min(canvas.width,rr-l+8),h:Math.min(canvas.height,b-t+8)};
+      paintRect();
+    }
+    if (e.target.id==='go' && buf) {
+      const sx = canvas.width / pageVp.width, sy = canvas.height / pageVp.height;
+      const pdf = await PDFDocument.load(buf,{ignoreEncryption:true});
+      pdf.getPages().forEach(p=>{
+        const {height}=p.getSize();
+        const x = rect.x/sx, y = rect.y/sy, w = rect.w/sx, h = rect.h/sy;
+        p.setCropBox(x, height - y - h, w, h);
+      });
+      await previewAndDownload(await pdf.save(),'cropped.pdf');
+    }
+  });
+}
+
+/* ---------- Page numbers ---------- */
+function toolNumber() {
+  const body = document.getElementById('toolBody');
+  body.innerHTML = dropZone({multiple:false}) + `
+    <div id="opts" class="hidden card p-5 mt-4 space-y-4">
+      <div><label class="text-sm font-medium">Position</label>
+        <select id="pos" class="w-full mt-2 px-3 py-2 rounded-lg border border-[var(--line)] outline-none">
+          <option value="br">Bottom right</option><option value="bl">Bottom left</option><option value="bc">Bottom center</option>
+          <option value="tr">Top right</option><option value="tl">Top left</option><option value="tc">Top center</option>
+        </select></div>
+      <div><label class="text-sm font-medium">Font size</label>
+        <input id="size" type="number" value="12" min="8" max="48" class="w-full mt-2 px-3 py-2 rounded-lg border border-[var(--line)] outline-none"/></div>
+      <button id="go" class="btn-primary px-5 py-2.5 rounded-xl font-medium">Add Numbers & Preview</button>
+    </div>
+    <div id="pv"></div>`;
+  const dz = body.querySelector('.drop-zone'); let buf=null;
+  wireDrop(dz, async fs => { buf=await fs[0].arrayBuffer(); document.getElementById('opts').classList.remove('hidden'); inlinePreview(document.getElementById('pv'), buf); });
+  document.addEventListener('click', async e=>{
+    if(e.target.id!=='go'||!buf) return;
+    const pdf = await PDFDocument.load(buf,{ignoreEncryption:true});
+    const font = await pdf.embedFont(StandardFonts.Helvetica);
+    const pos = document.getElementById('pos').value, sz = +document.getElementById('size').value;
+    pdf.getPages().forEach((p,i,arr)=>{
+      const {width,height}=p.getSize(); const txt = `${i+1} / ${arr.length}`; const tw = font.widthOfTextAtSize(txt,sz); const m=24;
+      let x = pos.endsWith('r')?width-tw-m : pos.endsWith('l')?m : (width-tw)/2;
+      let y = pos.startsWith('b')?m : height-sz-m;
+      p.drawText(txt,{x,y,size:sz,font,color:rgb(0.1,0.1,0.12)});
+    });
+    await previewAndDownload(await pdf.save(),'numbered.pdf');
+  });
+}
+
+/* ---------- Watermark ---------- */
+function toolWatermark() {
+  const body = document.getElementById('toolBody');
+  body.innerHTML = dropZone({multiple:false}) + `
+    <div id="opts" class="hidden card p-5 mt-4 space-y-4">
+      <div><label class="text-sm font-medium">Watermark text</label>
+        <input id="txt" class="selectable w-full mt-2 px-3 py-2 rounded-lg border border-[var(--line)] outline-none" placeholder="CONFIDENTIAL"/></div>
+      <div><label class="text-sm font-medium">Opacity: <span id="ov" class="font-semibold">30</span>%</label>
+        <input id="op" type="range" min="10" max="80" value="30" class="w-full mt-2 accent-brand"/></div>
+      <button id="go" class="btn-primary px-5 py-2.5 rounded-xl font-medium">Apply & Preview</button>
+    </div>
+    <div id="pv"></div>`;
+  const dz = body.querySelector('.drop-zone'); let buf=null;
+  wireDrop(dz, async fs => { buf=await fs[0].arrayBuffer(); document.getElementById('opts').classList.remove('hidden'); inlinePreview(document.getElementById('pv'), buf); });
+  document.addEventListener('input', e=>{ if(e.target.id==='op') document.getElementById('ov').textContent=e.target.value; });
+  document.addEventListener('click', async e=>{
+    if(e.target.id!=='go'||!buf) return;
+    const pdf = await PDFDocument.load(buf,{ignoreEncryption:true});
+    const font = await pdf.embedFont(StandardFonts.HelveticaBold);
+    const txt = (document.getElementById('txt').value||'CONFIDENTIAL').toUpperCase();
+    const op = +document.getElementById('op').value/100;
+    pdf.getPages().forEach(p=>{
+      const {width,height}=p.getSize(); const sz = Math.min(width,height)/8;
+      const tw = font.widthOfTextAtSize(txt,sz);
+      p.drawText(txt,{ x:(width-tw*0.7)/2, y:height/2, size:sz, font, color:rgb(0.88,0.11,0.28), opacity:op, rotate:degrees(-30) });
+    });
+    await previewAndDownload(await pdf.save(),'watermarked.pdf');
+  });
+}
+
+/* ---------- Chat ---------- */
+const chatPanel = document.getElementById('chatPanel');
+const chatMessages = document.getElementById('chatMessages');
+const chatInput = document.getElementById('chatInput');
+document.getElementById('chatToggle').onclick = ()=>{ chatPanel.classList.toggle('hidden'); chatInput.focus(); };
+document.getElementById('chatClose').onclick = ()=>chatPanel.classList.add('hidden');
+
+const KB = [
+  { k:['merge','combine','join'], a:"Open **Merge PDF**, drop 2+ PDFs, then click *Merge & Preview*.", tool:'merge' },
+  { k:['split','extract','range'], a:"Use **Split PDF**. Enter ranges like `1-3,5,8-10` or click thumbnails to pick pages.", tool:'split' },
+  { k:['delete','remove page'], a:"Open **Delete Pages**. You'll see every page — click the ones to delete, then preview & download.", tool:'delete' },
+  { k:['reorder','rearrange','sort page'], a:"Use **Reorder Pages** and drag thumbnails.", tool:'reorder' },
+  { k:['rotate','turn','sideways'], a:"Open **Rotate Pages**, select pages, then click 90°/180°.", tool:'rotate' },
+  { k:['compress','reduce','smaller','size'], a:"Try **Compress PDF**. Lower quality / scale = smaller file.", tool:'compress' },
+  { k:['protect','password','encrypt','lock'], a:"**Protect PDF** wraps your PDF in a password-locked HTML file. Open the HTML, enter the password, the PDF unlocks.", tool:'protect' },
+  { k:['image','photo','jpg','png','picture'], a:"Use **Images → PDF**. Drop photos in the order you want them.", tool:'img2pdf' },
+  { k:['pdf to image','png','export pages'], a:"**PDF → Images** renders each page as PNG and downloads a ZIP.", tool:'pdf2img' },
+  { k:['crop','margin','trim'], a:"Open **Crop PDF**. Drag the red box (or its corners) to crop, or click *Auto-crop*.", tool:'crop' },
+  { k:['number','pagina'], a:"Use **Page Numbers** and pick a corner.", tool:'number' },
+  { k:['watermark','stamp'], a:"Use **Watermark** to stamp text on every page.", tool:'watermark' },
+  { k:['about','contact','email','who'], a:"PDF MASTER is a privacy-first PDF toolkit. Contact: **catversstudio@gmail.com** or **asisasastudent@gmail.com**.", tool:'about' },
+  { k:['safe','privacy','upload','server'], a:"100% safe. Every tool runs in your browser — files never leave your device." },
+  { k:['rename'], a:"Before any download you'll see a preview and can rename the output file." },
+  { k:['hi','hello','hey'], a:"Hey! 👋 I'm the PDF MASTER assistant. Try *how do I merge* or *reduce file size*." },
+  { k:['thank'], a:"You're welcome! 🙌" },
+];
+
+function addMsg(text, who='bot', toolId=null) {
+  const wrap = document.createElement('div'); wrap.className = `flex ${who==='me'?'justify-end':'justify-start'}`;
+  const bubble = document.createElement('div');
+  bubble.className = who==='me'
+    ? 'max-w-[80%] bg-brand text-white rounded-2xl rounded-br-md px-3 py-2 text-sm selectable'
+    : 'max-w-[85%] bg-white border border-[var(--line)] rounded-2xl rounded-bl-md px-3 py-2 text-sm selectable';
+  bubble.innerHTML = text.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/`(.+?)`/g,'<code class="bg-gray-100 px-1 rounded">$1</code>');
+  if (toolId) {
+    const b = document.createElement('button'); b.className='mt-2 text-xs font-semibold text-brand hover:underline block'; b.textContent='→ Open this';
+    b.dataset.tool = toolId;
+    b.onclick = ()=>{ go(toolId); chatPanel.classList.add('hidden'); };
+    bubble.appendChild(b);
+  }
+  wrap.appendChild(bubble); chatMessages.appendChild(wrap); chatMessages.scrollTop = chatMessages.scrollHeight;
+  saveChat();
+}
+function reply(q) {
+  const lc = q.toLowerCase();
+  const hit = KB.find(e=>e.k.some(k=>lc.includes(k)));
+  if (hit) addMsg(hit.a,'bot', hit.tool);
+  else addMsg("I'm not sure about that one. Try asking about *merge*, *split*, *compress*, *protect*, *crop*, *images to PDF*, etc.",'bot');
+}
+function saveChat(){ try{ localStorage.setItem('pdfmaster_chat', chatMessages.innerHTML); }catch{} }
+function loadChat(){
+  const saved = localStorage.getItem('pdfmaster_chat');
+  if (saved) {
+    chatMessages.innerHTML = saved;
+    chatMessages.querySelectorAll('button[data-tool]').forEach(b=>{ b.onclick = ()=>{ go(b.dataset.tool); chatPanel.classList.add('hidden'); }; });
+  } else {
+    addMsg("Hi! I'm your PDF MASTER assistant. Ask me how to merge, compress, protect, crop, and more.",'bot');
+  }
+}
+document.getElementById('chatForm').onsubmit = e => {
+  e.preventDefault(); const v = chatInput.value.trim(); if(!v) return;
+  addMsg(v,'me'); chatInput.value=''; setTimeout(()=>reply(v), 350);
+};
+
+/* boot */
+renderHome();
+loadChat();
+</script>
+</body>
+</html>
